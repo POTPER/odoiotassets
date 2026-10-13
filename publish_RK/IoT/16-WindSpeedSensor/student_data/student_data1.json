@@ -1,0 +1,102 @@
+[
+    {
+        "Exceeding_Limit_Times": 3,
+        "Name": "Wind DirectionSensor",
+        "Status": {
+            "Connection_Status": 1,
+            "Communication_Status": 1,
+            "Output_Status": 1
+        },
+        "Answer": {
+            "Direction": "\u897f (W)",
+            "direction_degree": 270.0
+        },
+        "Target_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Maximum_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Output_Frequency": "1 s/\u6b21"
+    },
+    {
+        "Exceeding_Limit_Times": 3,
+        "Name": "Wind DirectionSensor",
+        "Status": {
+            "Connection_Status": 1,
+            "Communication_Status": 1,
+            "Output_Status": 1
+        },
+        "Answer": {
+            "Direction": "\u897f (W)",
+            "direction_degree": 270.0
+        },
+        "Target_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Maximum_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Output_Frequency": "1 s/\u6b21"
+    },
+    {
+        "Exceeding_Limit_Times": 3,
+        "Name": "Wind DirectionSensor",
+        "Status": {
+            "Connection_Status": 1,
+            "Communication_Status": 1,
+            "Output_Status": 1
+        },
+        "Answer": {
+            "Direction": "\u897f (W)",
+            "direction_degree": 270.0
+        },
+        "Target_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Maximum_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Output_Frequency": "1 s/\u6b21"
+    },
+    {
+        "Exceeding_Limit_Times": 3,
+        "Name": "Wind DirectionSensor",
+        "Status": {
+            "Connection_Status": 1,
+            "Communication_Status": 1,
+            "Output_Status": 1
+        },
+        "Answer": {
+            "Direction": "\u897f (W)",
+            "direction_degree": 270.0
+        },
+        "Target_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Maximum_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Output_Frequency": "1 s/\u6b21"
+    },
+    {
+        "Exceeding_Limit_Times": 3,
+        "Name": "Wind DirectionSensor",
+        "Status": {
+            "Connection_Status": 1,
+            "Communication_Status": 1,
+            "Output_Status": 1
+        },
+        "Answer": {
+            "Direction": "\u897f (W)",
+            "direction_degree": 270.0
+        },
+        "Target_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Maximum_Value": {
+            "WindDirectionSensor": 0
+        },
+        "Output_Frequency": "1 s/\u6b21"
+    }
+]

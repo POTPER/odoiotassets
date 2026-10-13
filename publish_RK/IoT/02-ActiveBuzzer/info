@@ -1,0 +1,31 @@
+有源蜂鸣器模块
+
+模块说明：
+- 类型：有源蜂鸣器
+- 接口：GPIO
+- 引脚：PIN 35（BOARD 模式）
+- 工作方式：高电平触发
+
+文件结构：
+- ActiveBuzzer_Demo1.py：演示程序（短鸣2声）
+- ActiveBuzzer_Demo1target.py：答案版本（长鸣1声）
+- UdpPackage.py：UDP 数据包封装
+
+---
+2026年1月14日 - Python语法优化
+
+优化内容：
+1. 添加模块文档字符串
+2. 使用模块级大写常量（PIN_BUZZER, UDP_DEST_ADDR 等）
+3. 私有函数命名（_send_udp, _save_data）
+4. 封装 buzzer_on()、buzzer_off()、buzzer_init()、buzzer_cleanup() 函数
+5. _save_data() 封装在 buzzer_on() 内部，学生无需关心数据保存
+6. 使用 while True 循环替代递归
+7. 使用 os.makedirs(exist_ok=True) 简化目录创建
+8. 使用 f-string 格式化字符串
+9. 参数设置区放在 if __name__ == '__main__' 内
+10. 删除重复的 Demo2.py 文件
+
+使用方法：
+1. 修改参数设置区的参数值
+2. 运行 python3 ActiveBuzzer_Demo1.py

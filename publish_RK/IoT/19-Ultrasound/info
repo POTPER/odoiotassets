@@ -1,0 +1,48 @@
+激光测距传感器模块（VL53L0X）
+
+模块说明：
+- 类型：激光测距传感器（VL53L0X ToF）
+- 接口：I2C
+- I2C 总线：1
+- I2C 地址：0x29（默认）
+- 测量范围：最大 2m
+- 工作方式：I2C 通信 + C 库调用
+
+精度模式：
+- GOOD：33ms，1.2m 范围
+- BETTER：66ms，1.2m 范围
+- BEST：200ms，1.2m 范围
+- LONG_RANGE：33ms，2m 范围
+- HIGH_SPEED：20ms，1.2m 范围
+
+文件结构：
+- VL53L0X_Demo1.py：演示程序
+- VL53L0X.py：驱动类
+- UdpPackage.py：UDP 数据包封装
+- vl53l0x_python.cpython-38-aarch64-linux-gnu.so：编译后的 C 库
+
+---
+2026年1月15日 - Python语法优化 & 文件夹结构扁平化
+
+优化内容：
+1. 添加模块文档字符串
+2. 使用模块级大写常量（I2C_BUS, I2C_ADDRESS, UDP_DEST_ADDR 等）
+3. 私有函数命名（_send_udp, _save_data）
+4. 封装 sensor_init()、sensor_read()、sensor_cleanup() 函数
+5. 使用 while True 循环
+6. 使用 os.makedirs(exist_ok=True) 简化目录创建
+7. 使用 f-string 格式化字符串
+8. 参数设置区放在 if __name__ == '__main__' 内
+9. 移除未使用的最大值和超限次数字段
+10. 启动时先发送一次数据
+
+文件夹清理：
+- 删除 VL53L0X-python-master 子文件夹，将核心文件移至根目录
+- 删除未使用的文件：README.md, .gitignore, Makefile, setup.py 等
+- 删除未使用的文件夹：Api/, obj/, platform/, python_lib/, example/
+- 更新 VL53L0X.py 库路径搜索，优先在当前目录查找 .so 文件
+
+使用方法：
+1. 进入 04-LaserSensor 目录
+2. 修改 VL53L0X_Demo1.py 参数设置区的参数值
+3. 运行 python3 VL53L0X_Demo1.py

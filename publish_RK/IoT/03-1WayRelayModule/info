@@ -1,0 +1,46 @@
+单路继电器模块
+
+模块说明：
+- 类型：单路继电器（光耦隔离）
+- 接口：GPIO
+- 引脚：PIN 29（BOARD 模式）
+- 工作电压：5V
+- 触发方式：低电平触发（5V高电平或GND低电平触发）
+- 继电器规格：最大负载 AC 250V/10A，DC 30V/10A
+
+接线说明：
+- VCC：接 5V 电源
+- GND：接地
+- TRIG：信号输入端（低电平触发）
+- NO（常开）：继电器吸合时导通
+- COM（公共端）：公共接点
+- NC（常闭）：继电器释放时导通
+
+接法示例：
+1. 常开接法：负载接 NO 和 COM，继电器吸合时负载通电
+2. 常闭接法：负载接 NC 和 COM，继电器释放时负载通电
+
+工作原理：
+- 输入低电平 → 光耦导通 → 继电器吸合 → NO-COM 导通
+- 输入高电平 → 光耦截止 → 继电器释放 → NC-COM 导通
+
+文件结构：
+- 1WayRelayModule_Demo1.py：演示程序
+- UdpPackage.py：UDP 数据包封装
+
+---
+2026年1月14日 - Python语法优化
+
+优化内容：
+1. 添加模块文档字符串
+2. 使用模块级大写常量（PIN_RELAY, UDP_DEST_ADDR 等）
+3. 私有函数命名（_send_udp, _save_data）
+4. 封装 relay_on()、relay_off()、relay_init()、relay_cleanup() 函数
+5. _save_data() 封装在 relay_on() 和 relay_off() 内部
+6. 使用 while True 循环替代递归
+7. 启动时立即发送状态数据
+8. 修正为低电平触发
+
+使用方法：
+1. 修改参数设置区的参数值
+2. 运行 python3 1WayRelayModule_Demo1.py
