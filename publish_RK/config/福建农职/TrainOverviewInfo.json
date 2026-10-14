@@ -281,11 +281,11 @@
   },
   {
     "TrainTaskId": 31,
-    "DeviceName": "超声波传感器",
-    "TrainIntroduction": "超声波传感器是一种使用超声波技术进行测距的模块；模块稳定测试距离为2~450cm",
-    "EquipmentPerformance": "工作电压：3.3V/5V \n测距范围：2 ~ 450cm \n常温测距精度：± （1+S*0.5%)CM \n参考角度：≈50 \n测距角度：25° \n盲区距离:0~2CM",
-    "CommunicationMode":  "接口：标准IIC/SPI",
-    "ImagePath": "Assets/Overview/20.png",
-    "DeviceImagePath": "Assets/DeviceConnect/csb.png"
+    "DeviceName": "吊重传感器",
+    "TrainIntroduction": "吊重传感器是一种用于测量吊重物重量的传感器装置。它通常由传感器元件和信号处理单元组成，能够将吊重物的重量转换为可测量的电信号或数字信号。吊重传感器广泛应用于起重机械、运输机械、工程机械等领域，用于控制吊重物的升降、位置和重量等。",
+    "EquipmentPerformance": "吊重监测范围：0~3kg；分辨率：16bit单极性，17bit双极性；误差：0.05%F·S",
+    "CommunicationMode": "接口：RS485",
+    "ImagePath": "Assets/Overview/9.png",
+    "DeviceImagePath": "Assets/DeviceConnect/dz.png"
   }
 ]
