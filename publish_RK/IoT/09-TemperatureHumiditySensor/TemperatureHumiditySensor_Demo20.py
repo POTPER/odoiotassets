@@ -1,5 +1,17 @@
-# 教学实验：在用户设置区填写自定义字段，自动建目录并保存 CSV。
-# 运行：python3 TemperatureHumiditySensor_Demo20.py；按 Ctrl+C 停止。
+# ==================== 教学任务 ====================
+# 某施工项目开展智能建造环境监测试点。材料存放区的木质模板、金属配件易受天气、通风及潮湿环境影响，
+# 存在受潮变形、锈蚀等风险。人工巡查难以持续掌握环境变化，项目部拟通过自动采集温湿度，
+# 为现场检查和问题追溯提供参考。
+#
+# 项目部将本次调试定名为“终端温度监测”，选取“材料存放区01”开展模拟监测，并约定以25℃为温度提示分界：
+# 超过时标记超标，未超过时正常记录，同时保存采集时间、区域和测量结果。
+#
+# 现由你使用实训箱中的温湿度传感器完成模拟调试，依据上述安排配置程序，连续监测8秒，
+# 检查温度数据及超标标记，归档对应项目和区域的运行记录。
+# 请在“02 用户设置”分区中完成调整并填写个人信息。
+# 湿度判别目标和采集间隔沿用程序初始配置；25℃仅用于本次实训，不作为材料存放的通用标准。
+# 检查 CSV 中的位置、实测值、目标值和超标标记，并核对同次自动保存的 Python 源文件。
+
 
 # ==================== 01 标准库导入 ====================
 # 提供命令行参数、驱动调用、JSON 处理、网络通信和计时功能。
@@ -18,21 +30,21 @@ from pathlib import Path
 
 # ==================== 02 用户设置 ====================
 # 本实训以施工环境监测为背景，练习环境数据的采集、异常识别与记录归档。
-# 运行前填写责任人或作业小组、实验项目和监测位置，并设置目标值及监测频率。
-# 数据按“桌面 / 姓名或小组 / 实验项目”分级归档，便于汇总不同人员和项目的实验成果。
-# 未填写姓名/小组时归入“未命名”；学号仅写入表格，文件名依次包含实验项目、姓名/小组和启动时间。
+# 运行前填写责任人或作业小组、任务项目和监测位置，并设置目标值及监测间隔。
+# 数据按“桌面 / 成果输出 / 姓名或小组 / 任务项目”分级归档，便于汇总不同人员和项目的实验成果。
+# 未填写姓名/小组时归入“未命名”；学号仅写入表格，文件名依次包含任务项目、姓名/小组和启动时间。
 experiment_info = {
-    "姓名/小组": "第一小组",
+    "姓名/小组": "任务小组",
     "学号": "",
-    "实验项目": "温湿度监测",
-    "实验位置": "物联实训箱01",
+    "任务项目": "温湿度监测",
+    "任务位置": "物联实训箱01",
     # "课程名称": "智能建造物联网实训",
     # "班级": "智能建造2301",
     # "指导教师": "李老师",
 }
 degrees_sensor_target_value = 35  # 温度目标值，单位 °C
 humidity_sensor_target_value = 80  # 湿度目标值，单位 %RH
-monitoring_frequency = 1  # 监测频率，次/秒；1 为每秒一次，0.2 为每五秒一次
+monitoring_interval = 1  # 监测间隔，秒/次；2 表示每两秒采集一次
 
 # ==================== 03 文件路径与通信常量 ====================
 # 指定驱动和数据文件位置、UDP 接收地址、历史数量及等待时间。
@@ -108,7 +120,7 @@ class CsvExperimentLog:
     FIELD_NAMES = [
         "采集时间", "模块编号",
         "温度(°C)", "湿度(%RH)", "温度目标值(°C)",
-        "湿度目标值(%RH)", "监测频率(次/秒)", "数据状态", "超标项目", "错误信息",
+        "湿度目标值(%RH)", "监测间隔(秒/次)", "数据状态", "超标项目", "错误信息",
     ]
 
     def __init__(self, experiment, module_index, output_root=None):
@@ -121,10 +133,11 @@ class CsvExperimentLog:
                 raise ValueError(f"自定义字段与系统列重名：{field}")
         self.field_names = [self.FIELD_NAMES[0], *self.experiment, *self.FIELD_NAMES[1:]]
         self.module_index = module_index
-        # 第一层按使用者归档，第二层按项目归档，便于同一使用者开展不同实验。
-        root = Path(output_root).expanduser() if output_root is not None else find_desktop()
+        # 默认在桌面的“成果输出”目录内，按使用者、任务项目分级归档。
+        root = Path(output_root).expanduser() if output_root is not None else find_desktop() / "成果输出"
         person = str(self.experiment.get("姓名/小组") or self.experiment.get("小组/姓名") or "未命名").strip() or "未命名"
-        project = str(self.experiment.get("实验项目") or "未命名实验").strip() or "未命名实验"
+        # 归档名称取自用户设置中的“任务项目”。
+        project = str(self.experiment.get("任务项目") or "未命名实验").strip() or "未命名实验"
         folder = root / safe_path_component(person) / safe_path_component(project)
         folder.mkdir(parents=True, exist_ok=True)
         started_at = datetime.now()
@@ -135,6 +148,11 @@ class CsvExperimentLog:
         while True:
             suffix = "" if sequence == 1 else f"_{sequence}"
             self.file_path = folder / f"{safe_path_component(project)}_{safe_path_component(person)}_{start_date}{suffix}_{start_clock}.csv"
+            self.code_path = self.file_path.with_suffix(".py")
+            # CSV 和代码快照使用同一主体名称，任一文件已存在都换用新序号。
+            if self.code_path.exists():
+                sequence += 1
+                continue
             try:
                 handle = self.file_path.open("x", encoding="utf-8-sig", newline="")
                 break
@@ -144,6 +162,19 @@ class CsvExperimentLog:
         with handle:
             csv.writer(handle).writerow(self.field_names)
         print(f"CSV 保存位置：{self.file_path}", flush=True)
+        self.save_source_code()
+
+    def save_source_code(self):
+        # 保存本次运行文件的完整源码，便于与 CSV 对照核验配置及程序逻辑。
+        try:
+            source_bytes = Path(__file__).resolve().read_bytes()
+            with self.code_path.open("xb") as handle:
+                handle.write(source_bytes)
+        except OSError as error:
+            print(f"运行代码保存失败：{error}", file=sys.stderr, flush=True)
+            self.record_error("保存运行代码失败", error)
+        else:
+            print(f"运行代码保存位置：{self.code_path}", flush=True)
 
     @staticmethod
     def spreadsheet_text(text):
@@ -164,7 +195,7 @@ class CsvExperimentLog:
             self.module_index,
             round(temperature, 2) if online else "",
             round(humidity, 2) if online else "",
-            degrees_sensor_target_value, humidity_sensor_target_value, monitoring_frequency,
+            degrees_sensor_target_value, humidity_sensor_target_value, monitoring_interval,
             status or reading_status,
             "、".join(exceeded),
             self.spreadsheet_text(error_message),
@@ -299,7 +330,7 @@ class SensorDataOutput:
 
     @staticmethod
     def build_record(temperature, humidity, online):
-        # 生成一条记录：读数、状态、目标值和监测频率。
+        # 生成一条记录：读数、状态、目标值和监测间隔。
         status = int(online)
         return {
             "Name": SENSOR_NAME,
@@ -316,7 +347,7 @@ class SensorDataOutput:
                 "degrees value": degrees_sensor_target_value,
                 "humidity value": humidity_sensor_target_value,
             },
-            "Output_Frequency": f"{monitoring_frequency} 次/秒",
+            "Output_Frequency": f"{monitoring_interval} 秒/次",
             "Exceeding_Target": exceeding_targets(temperature, humidity, online),
         }
 
@@ -430,7 +461,7 @@ def release_connection(modules, sensor, mod_index, csv_log):
 
 
 # ==================== 12 采集主流程 ====================
-# 检查监测频率，扫描并连接模块，循环采集、上报，断线后重试。
+# 检查监测间隔，扫描并连接模块，循环采集、上报，断线后重试。
 def run_sensor(experiment, mod_index=9, output_root=None):
     # 扫描模块、循环采集；断线重连，Ctrl+C 后释放资源。
     # 先创建 CSV，配置或驱动初始化失败时也能留下错误记录。
@@ -439,23 +470,21 @@ def run_sensor(experiment, mod_index=9, output_root=None):
     modules = None
     sensor = None
     connected = False
-    stage = "检查监测频率"
+    stage = "检查监测间隔"
     try:
-        valid_frequency = (
-            isinstance(monitoring_frequency, (int, float))
-            and math.isfinite(monitoring_frequency)
-            and monitoring_frequency > 0
+        valid_interval = (
+            isinstance(monitoring_interval, (int, float))
+            and math.isfinite(monitoring_interval)
+            and monitoring_interval > 0
         )
-        if not valid_frequency:
-            raise RuntimeError("监测频率 monitoring_frequency 必须是有限的正数，单位次/秒")
-        sampling_interval = 1.0 / monitoring_frequency
-        if not math.isfinite(sampling_interval):
-            raise RuntimeError("监测频率过小，无法换算为有效采集间隔")
+        if not valid_interval:
+            raise RuntimeError("监测间隔 monitoring_interval 必须是有限的正数，单位秒/次")
+        sampling_interval = monitoring_interval
         for name, target in (("温度", degrees_sensor_target_value), ("湿度", humidity_sensor_target_value)):
             if not isinstance(target, (int, float)) or not math.isfinite(target):
                 raise RuntimeError(f"{name}目标值必须是有限数值")
         if sampling_interval < MEASUREMENT_WAIT_SECONDS:
-            print("提示：监测频率为设定值，实际频率受至少 1 秒的硬件测量耗时限制。", flush=True)
+            print("提示：监测间隔为设定值，实际间隔不短于至少 1 秒的硬件测量耗时。", flush=True)
         stage = "加载驱动"
         load_driver()
         stage = "初始化数据输出"
@@ -533,7 +562,7 @@ def main(default_module=9):
         description="温湿度教学实验：使用文件顶部的实验设置，自动创建目录并保存 CSV"
     )
     parser.add_argument("--module", type=int, default=default_module, help="模块地址")
-    parser.add_argument("--output-dir", type=Path, help="保存根目录，默认当前用户桌面；其下按姓名/小组和实验项目建目录")
+    parser.add_argument("--output-dir", type=Path, help="保存根目录，默认当前用户桌面下的“成果输出”目录；其下按姓名/小组和任务项目建目录")
     args = parser.parse_args()
     try:
         if not isinstance(experiment_info, dict):

@@ -1,20 +1,6 @@
-# ==================== 赛事任务 ====================
-# 某施工项目开展智能建造环境监测试点。材料存放区的木质模板、金属配件易受天气、通风及潮湿环境影响，
-# 存在受潮变形、锈蚀等风险。人工巡查难以持续掌握环境变化，项目部拟通过自动采集温湿度，
-# 为现场检查和问题追溯提供参考。
-#
-# 项目部将本次调试定名为“终端温度监测”，选取“材料存放区01”开展模拟监测，并约定以25℃为温度提示分界：
-# 超过时标记超标，未超过时正常记录，同时保存采集时间、区域和测量结果。
-#
-# 现由你使用实训箱中的温湿度传感器完成模拟调试，依据上述安排配置程序，连续监测8秒，
-# 检查温度数据及超标标记，归档对应项目和区域的运行记录。
-# 请在“02 用户设置”分区中完成调整，监测完成后按 Ctrl+C 停止。
-# 检查并提交同次自动保存的 CSV 和 Python 源文件。
-
-# 文件保存位置：桌面 / 成果输出 / 姓名或小组 / 任务项目。
-
-# ==================== 01 标准库导入 ====================
-
+#!/usr/bin/env python3
+# ==================== 01 程序依赖 ====================
+# 标准库负责参数读取、驱动调用、计时、文件归档及状态上报。
 import argparse
 import ctypes
 import csv
@@ -29,22 +15,37 @@ from datetime import datetime
 from pathlib import Path
 
 # ==================== 02 用户设置 ====================
-# TODO：阅读顶部任务背景，在本分区完成相应配置，并填写个人信息。
-# 运行后检查监测结果及自动保存的记录。
-# 其他参数和程序逻辑保持不变。
+
+# ==================== 考试任务：终端温度监测 ====================
+# 某施工项目开展智能建造环境监测试点。材料存放区的木质模板、金属配件存在受潮变形、锈蚀等风险，
+# 项目部拟自动采集环境温湿度，为现场巡查和问题追溯提供参考。
+#
+# 本次调试定名为“终端温度监测”，监测点为“材料存放区01”。每2秒采集一次温湿度数据，
+# 连续采集5次有效数据。温度高于25℃时标记“温度超标”，等于或低于25℃时视为温度正常。
+# 每次采集均保存采集时间、监测位置、测量结果及温度判别标记。
+#
+# 现由你使用实训箱中的温湿度传感器完成模拟调试，按上述要求配置程序，检查采集间隔、数据记录及温度判别结果，
+# 完成后提交本次CSV运行记录和同次程序源码，供复核归档。
+
+# ====================================================
+# TODO：阅读顶部任务背景，填写实验信息并设置温度目标值、监测间隔。
+# 当前示例可以运行，请检查配置及监测结果；湿度目标值和程序逻辑沿用现有设置。
+# 完成5次有效采集后按Ctrl+C停止，提交同次CSV及自动保存的Python源码。
 
 experiment_info = {
-    "姓名/小组": "任务小组",
-    "学号": "",
-    "任务项目": "温湿度监测",
-    "任务位置": "物联实训箱01",
+    "考试编号": "考号",
+    "项目名称": "温湿度监测",
+    "项目位置": "物联实训箱01",
 }
-degrees_sensor_target_value = 35  # 温度目标值，单位 °C
+
+# >>>>>>>>>>>>>>>>>>>> TODO：监测参数设置区 >>>>>>>>>>>>>>>>>>>>
+degrees_sensor_target_value = 35  # 温度目标值，单位°C。
+monitoring_interval = 1  # 监测间隔，秒/次。
+# <<<<<<<<<<<<<<<<<<<< TODO：设置区结束 <<<<<<<<<<<<<<<<<<<<<<
+
+# ==================== 03 系统配置 ====================
+# 以下为湿度判别、实训箱驱动与通信参数，本次任务通常无需修改。
 humidity_sensor_target_value = 80  # 湿度目标值，单位 %RH
-monitoring_interval = 1  # 监测间隔，秒/次；2 表示每两秒采集一次
-
-# ==================== 03 文件路径与通信常量 ====================
-
 SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 DRIVER_PATH = SCRIPT_DIRECTORY / "libSmartSensorDriver.so"
 DATA_PATH = SCRIPT_DIRECTORY / "student_data" / "student_data.json"
@@ -58,6 +59,8 @@ MEASUREMENT_WAIT_SECONDS = 1
 smartSensorlib = None
 
 # ==================== 04 实验信息与 CSV 历史记录 ====================
+# 默认保存到当前用户桌面/成果输出/考试编号/项目名称，每次运行新建CSV及同次入口源码。
+# CSV记录实际测量值、目标值和超标标记；离线及读取失败的数据不参与超标判断。
 
 def safe_path_component(text):
 
@@ -132,9 +135,9 @@ class CsvExperimentLog:
         self.module_index = module_index
 
         root = Path(output_root).expanduser() if output_root is not None else find_desktop() / "成果输出"
-        person = str(self.experiment.get("姓名/小组") or self.experiment.get("小组/姓名") or "未命名").strip() or "未命名"
-        # 归档名称取自用户设置中的“任务项目”。
-        project = str(self.experiment.get("任务项目") or "未命名实验").strip() or "未命名实验"
+        person = str(self.experiment.get("考试编号") or "未命名").strip() or "未命名"
+        # 归档名称取自用户设置中的“项目名称”。
+        project = str(self.experiment.get("项目名称") or "未命名实验").strip() or "未命名实验"
         folder = root / safe_path_component(person) / safe_path_component(project)
         folder.mkdir(parents=True, exist_ok=True)
         started_at = datetime.now()
@@ -559,7 +562,7 @@ def main(default_module=9):
         description="温湿度教学实验：使用文件顶部的实验设置，自动创建目录并保存 CSV"
     )
     parser.add_argument("--module", type=int, default=default_module, help="模块地址")
-    parser.add_argument("--output-dir", type=Path, help="保存根目录，默认当前用户桌面下的“成果输出”目录；其下按姓名/小组和任务项目建目录")
+    parser.add_argument("--output-dir", type=Path, help="保存根目录，默认当前用户桌面下的“成果输出”目录；其下按考试编号和项目名称建目录")
     args = parser.parse_args()
     try:
         if not isinstance(experiment_info, dict):
@@ -579,6 +582,7 @@ def main(default_module=9):
 
 
 # ==================== 14 程序启动 ====================
-
+# 在本目录运行：python3 Shandong2026_T1_Temp.py
+# 先保存用户设置再启动，完成监测后按Ctrl+C停止并检查归档文件。
 if __name__ == "__main__":
     sys.exit(main())

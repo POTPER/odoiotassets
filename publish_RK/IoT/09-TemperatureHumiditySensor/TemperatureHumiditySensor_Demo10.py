@@ -1,4 +1,8 @@
+# 温湿度采集程序：读取 AHT20，保存 JSON，并通过 UDP 上报。
+# 运行：python3 TemperatureHumiditySensor_Demo10.py；按 Ctrl+C 停止。
 
+# ==================== 01 标准库导入 ====================
+# 提供命令行参数、驱动调用、JSON 处理、网络通信和计时功能。
 import argparse
 import ctypes
 import json
@@ -8,12 +12,15 @@ import sys
 import time
 from pathlib import Path
 
-# ==================== 用户设置 ====================
-degrees_sensor_target_value = 35  # 温度目标值，单位 °C
-humidity_sensor_target_value = 80  # 湿度目标值，单位 %RH
+# ==================== 02 用户设置 ====================
+# 在此修改温度目标值、湿度目标值和监测间隔。
+# 目标值仅用于保存和上报，不改变传感器实际读数。
+degrees_sensor_target_value = 0  # 温度目标值，单位 °C
+humidity_sensor_target_value = 0  # 湿度目标值，单位 %RH
 sleep_time = 1  # 监测间隔，单位秒；1 表示目标为每秒采集一次
 
-# ==================== 驱动与协议常量 ====================
+# ==================== 03 文件路径与通信常量 ====================
+# 指定驱动和数据文件位置、UDP 接收地址、历史数量及等待时间。
 SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 DRIVER_PATH = SCRIPT_DIRECTORY / "libSmartSensorDriver.so"
 DATA_PATH = SCRIPT_DIRECTORY / "student_data" / "student_data.json"
@@ -26,6 +33,8 @@ MEASUREMENT_WAIT_SECONDS = 1
 
 smartSensorlib = None
 
+# ==================== 04 驱动加载 ====================
+# 加载原厂动态库，声明 Python 调用底层驱动时使用的参数类型。
 def load_driver():
     # 加载脚本同目录的驱动，并声明原厂函数的参数类型。
     global smartSensorlib
@@ -50,6 +59,8 @@ def load_driver():
     smartSensorlib.I2CUninit.restype = ctypes.c_int
 
 
+# ==================== 05 模块连接管理 ====================
+# 负责初始化驱动、发现模块、检查在线状态、连接和断开模块。
 class SensorModule:
     # 封装模块发现、连接和释放；方法名沿用原厂示例。
 
@@ -72,12 +83,16 @@ class SensorModule:
         smartSensorlib.SmartSensorLibUnInit()
 
 
+# ==================== 06 AHT20 硬件参数 ====================
+# 定义 I²C 设备地址、SDA/SCL 引脚及温湿度原始值的换算基数。
 AHT20_ADDR = 0x38
 AHT20_SDA_PIN = 23
 AHT20_SCL_PIN = 22
 AHT20_RESOLUTION = 0x100000
 
 
+# ==================== 07 温湿度采集 ====================
+# 初始化 I²C，发送测量指令，等待结果并换算出温度和相对湿度。
 class AHT20:
     # 触发一次测量，并将原始数据换算为温度和相对湿度。
 
@@ -121,6 +136,8 @@ class AHT20:
         return smartSensorlib.I2CUninit(self.module_index)
 
 
+# ==================== 08 数据保存与 UDP 上报 ====================
+# 生成包含读数、状态、目标值及频率的记录，保留最近五条并分包发送。
 class SensorDataOutput:
     # 保存最近五条记录，并按照原协议分包发送到本机服务。
 
@@ -225,6 +242,8 @@ class SensorDataOutput:
         self.udp_socket.close()
 
 
+# ==================== 09 数据输出异常处理 ====================
+# 统一调用保存和发送功能，输出失败时提示错误并继续采集。
 def save_reading(output, temperature, humidity, online):
     # 输出失败时报告错误，下一轮仍继续采集。
     try:
@@ -233,6 +252,8 @@ def save_reading(output, temperature, humidity, online):
         print("保存或发送数据失败：{}".format(error), file=sys.stderr, flush=True)
 
 
+# ==================== 10 连接资源释放 ====================
+# 依次释放传感器和模块连接，用于断线重试和程序退出。
 def release_connection(modules, sensor, mod_index):
     # 释放传感器和模块；其中一步失败时仍继续清理。
     try:
@@ -246,6 +267,8 @@ def release_connection(modules, sensor, mod_index):
         print("断开模块失败：{}".format(error), file=sys.stderr)
 
 
+# ==================== 11 采集主流程 ====================
+# 检查监测间隔，扫描并连接模块，循环采集、上报，断线后重试。
 def run_sensor(mod_index=9):
     # 扫描模块、循环采集；断线重连，Ctrl+C 后释放资源。
     valid_interval = (
@@ -309,6 +332,8 @@ def run_sensor(mod_index=9):
             output.close()
 
 
+# ==================== 12 命令行入口 ====================
+# 解析模块地址参数并启动采集，启动失败时给出错误提示。
 def main(default_module=9):
     parser = argparse.ArgumentParser(
         description="读取、保存并发送温湿度，支持目标值和监测频率设置"
@@ -326,5 +351,7 @@ def main(default_module=9):
     return 0
 
 
+# ==================== 13 程序启动 ====================
+# 仅在直接运行本文件时启动主流程。
 if __name__ == "__main__":
     sys.exit(main())
