@@ -1,0 +1,291 @@
+﻿[
+  {
+    "TrainTaskId": 9,
+    "DeviceName": "温湿度传感器",
+    "TrainIntroduction": "温湿度传感器是一种能够测量环境温度和湿度水平的传感器装置。它广泛应用于各种领域，如家庭、办公室、实验室、温室、气象站等，用于和记录温度和湿度数据。温湿度传感器通常由一个或多个感温元件和感湿元件组成，通过检测环境中的温度和湿度变化，将数据转换成可供读取的电信号或数字信号。",
+    "EquipmentPerformance": "温度监测范围：-40~+85℃；分辨率：0.1℃；误差：±0.5℃（25℃）\n湿度监测范围：0～100%RH；分辨率：0.1%RH；误差：±1%RH\n气压监测范围：300~1100hPa；分辨率：0.12Pa；误差：±1hPa",
+    "CommunicationMode": "接口：SPI",
+    "ImagePath": "Assets/Overview/1.png",
+    "DeviceImagePath": "Assets/DeviceConnect/wsd.png"
+  },
+  {
+    "TrainTaskId": 16,
+    "DeviceName": "风速传感器",
+    "TrainIntroduction": "风速风向传感器是一种用于测量风的方向和速度的传感器装置。它通常由风速传感器和风向传感器组成，用于检测和记录风的强度和方向。风向传感器广泛应用于气象、航空、建筑、农业等领域，用于监测和分析风力及其对环境的影响。其中风速传感器一般采用旋转或超声波测量原理来测量风速。旋转风速传感器通过风力的作用使传感器的旋转部件旋转，根据旋转的速度来测量风速。超声波风速传感器则通过发射超声波信号，并测量信号在风中传播的时间，从而计算出风速。",
+    "EquipmentPerformance": "风速监测范围：0～60m/s；分辨率：0.1m/s；误差：±0.3m/s\n风向监测范围：8个方位；分辨率：/；误差：/",
+    "CommunicationMode": "接口：RS485",
+    "ImagePath": "Assets/Overview/2.png",
+    "DeviceImagePath": "Assets/DeviceConnect/fs.png"
+  },
+  {
+    "TrainTaskId": 15,
+    "DeviceName": "风向传感器",
+    "TrainIntroduction": "风速风向传感器是一种用于测量风的方向和速度的传感器装置。它通常由风速传感器和风向传感器组成，用于检测和记录风的强度和方向。风向传感器广泛应用于气象、航空、建筑、农业等领域，用于监测和分析风力及其对环境的影响。其中风速传感器一般采用旋转或超声波测量原理来测量风速。旋转风速传感器通过风力的作用使传感器的旋转部件旋转，根据旋转的速度来测量风速。超声波风速传感器则通过发射超声波信号，并测量信号在风中传播的时间，从而计算出风速。",
+    "EquipmentPerformance": "风速监测范围：0～60m/s；分辨率：0.1m/s；误差：±0.3m/s\n风向监测范围：8个方位；分辨率：/；误差：/",
+    "CommunicationMode": "接口：RS485",
+    "ImagePath": "Assets/Overview/2.png",
+    "DeviceImagePath": "Assets/DeviceConnect/fx.png"
+  },
+  {
+    "TrainTaskId": 11,
+    "DeviceName": "分贝传感器",
+    "TrainIntroduction": "分贝传感器是一种用于测量声音强度或振动水平的传感器装置。它广泛应用于声学研究、噪声控制、医疗诊断、振动测试等领域，用于监测和分析声音或振动的强度。分贝传感器可以将声音或振动信号转换为可测量的电信号或数字信号，并提供声音或振动的强度信息。\n分贝传感器通常基于声压级或声强等原理进行测量。声压级是指单位面积上声波压力的平方所产生的分贝数，用于表示声音强度的相对大小。分贝传感器通过测量声压级来评估声音强度，适用于各种环境中的声音监测。声强则是指单位面积上声波所具有的能量，通常用于评估机械设备的振动水平。分贝传感器可以测量声强并将其转换为分贝值，适用于振动测试和机械故障诊断等应用。",
+    "EquipmentPerformance": "分贝监测范围：30～130dB；分辨率：0.1dB；误差：±0.5dB",
+    "CommunicationMode": "接口：UART",
+    "ImagePath": "Assets/Overview/4.png",
+    "DeviceImagePath": "Assets/DeviceConnect/fb.png"
+  },
+  {
+    "TrainTaskId": 14,
+    "DeviceName": "PM2.5/PM10/TSP传感器",
+    "TrainIntroduction": "PM2.5/PM10/TSP传感器是一种能够测量空气中颗粒物浓度的传感器装置，主要用于监测环境中的空气质量。它通常由PM2.5传感器和TSP传感器组成，能够分别测量空气中颗粒物的直径和总悬浮颗粒物的浓度。PM2.5是指空气中直径小于或等于2.5微米的颗粒物，也称为可入肺颗粒物，对人体健康影响较大。TSP是指总悬浮颗粒物，包括PM10和更细小的颗粒物，是衡量空气质量的重要指标之一。\nPM2.5/PM10/TSP传感器通常采用光散射法或重量法等原理来测量颗粒物浓度。光散射法是通过测量颗粒物对光的散射强度来计算颗粒物的浓度，适用于测量PM2.5等细颗粒物。重量法则是通过测量颗粒物的质量或体积，结合已知的空气流量等信息来计算颗粒物的浓度，适用于测量TSP等较大的颗粒物。",
+    "EquipmentPerformance": "监测范围：0～1000μg/m3；分辨率：1μg/m3；误差：颗粒物计数效率为\n50%@0.3μm，98%@>=0.5μm，PM2.5为±3%FS（@100μg/m3、25℃、50%RH）",
+    "CommunicationMode": "接口：UART/PWM",
+    "ImagePath": "Assets/Overview/5.png",
+    "DeviceImagePath": "Assets/DeviceConnect/kqzl.png"
+  },
+  {
+    "TrainTaskId": 17,
+    "DeviceName": "声光报警器",
+    "TrainIntroduction": "声光报警器的应用非常广泛，当传感器数据超过阈值时，可以通过声光报警器及时报警，提醒现场施工人员注意安全，声光报警器可以根据需求设置不同报警等级。",
+    "EquipmentPerformance": "声光报警器可以根据需求调节音量大小，满足现场需求",
+    "CommunicationMode": "接口：网络接口",
+    "ImagePath": "Assets/Overview/6.png",
+    "DeviceImagePath": "Assets/DeviceConnect/wy.png"
+  },
+  {
+    "TrainTaskId": 13,
+    "DeviceName": "倾角传感器",
+    "TrainIntroduction": "倾角传感器是一种用于测量物体相对于水平方向的倾斜角度的传感器。它通常由高精度的加速度计和角度计组成，能够实时监测物体在水平面上的倾斜程度。倾角传感器可以广泛应用于建筑、机械、航空航天等领域。在建筑中，倾角传感器可以用于检测建筑物的倾斜情况，提供给工程师及时调整和修复建筑物结构的必要信息。在机械领域，倾角传感器可以用于监测机械设备的倾斜情况，以防止设备的倾斜导致故障和事故的发生。\n倾角传感器的工作原理是基于物体的重力对传感器的影响。加速度计测量物体的重力加速度，然后通过数学算法计算出物体相对于水平方向的倾斜角度。倾角传感器通常具有高精度、低能耗、快速响应和抗干扰等特点。",
+    "EquipmentPerformance": "倾角监测范围：X±180°，Y±90°；分辨率：0.0055°；误差：0.2°",
+    "CommunicationMode": "接口：标准IIC/SPI",
+    "ImagePath": "Assets/Overview/7.png",
+    "DeviceImagePath": "Assets/DeviceConnect/qj.png"
+  },
+  {
+    "TrainTaskId": 18,
+    "DeviceName": "压力传感器",
+    "TrainIntroduction": "压力传感器是一种用于测量介质压力的传感器装置。它广泛应用于工业自动化、液压系统、气候控制、医疗设备等领域，用于监测和控制介质的压力变化。压力传感器能够将介质的压力转换为可测量的电信号或数字信号，并提供精确的压力信息。",
+    "EquipmentPerformance": "压力监测范围：0~3kg；分辨率：16bit单极性，17bit双极性；误差：0.05%F·S",
+    "CommunicationMode": "接口：TTL",
+    "ImagePath": "Assets/Overview/8.png",
+    "DeviceImagePath": "Assets/DeviceConnect/yl.png"
+  },
+  {
+    "TrainTaskId": 8,
+    "DeviceName": "红外传感器",
+    "TrainIntroduction": "红外安全光幕是一种被广泛应用于工业和机械领域的安全保护装置。它通过使用红外光束来创建一个由发射器和接收器组成的光屏，以监测和检测在光屏内是否有人或物体进入。当人或物体进入光屏时，红外安全光幕会立即触发信号，停止相关的机器或设备以防止事故的发生。\n红外安全光幕的工作原理是利用发射器发射出的红外光束，并由接收器接收。当光束中断时，接收器会检测到，并通过信号告诉控制系统相应的操作，如停止运转或采取其他安全措施。光束的中断通常是由人或物体进入光屏范围内所引起的。",
+    "EquipmentPerformance": "红外监测范围：0-3m；分辨率：/；误差：20mm(每根光栅距离)",
+    "CommunicationMode": "接口：GPIO\n信号类型：数字信号",
+    "ImagePath": "Assets/Overview/10.png",
+    "DeviceImagePath": "Assets/DeviceConnect/hwzl.png"
+  },
+  {
+    "TrainTaskId": 10,
+    "DeviceName": "光线传感器",
+    "TrainIntroduction": "光线强度传感器是一种用于测量环境中光线强度的传感器装置。它常用于光照度测量和光控系统中，用于监测环境的光照水平。光线强度传感器可以根据环境的光照条件，输出相应的电信号或数字信号，用于控制照明系统、自动调节屏幕亮度等应用。\n光线强度传感器的工作原理通常基于光敏元件的感光特性。光线强度传感器常用的感光元件包括光敏电阻、光敏二极管、光敏三极管和光敏传感器等。这些感光元件可以根据环境中光照的强度，改变自身的电阻值或电流大小，从而反映出光线的强度。",
+    "EquipmentPerformance": "红外监测范围：0～20万Lux；分辨率：/；误差：±7%",
+    "CommunicationMode": "接口：I2C",
+    "ImagePath": "Assets/Overview/11.png",
+    "DeviceImagePath": "Assets/DeviceConnect/gx.png"
+  },
+  {
+    "TrainTaskId": 12,
+    "DeviceName": "烟雾传感器",
+    "TrainIntroduction": "烟雾传感器是一种用于检测烟雾或火灾的传感器装置。它广泛应用于家庭、办公室、商场、厂房等场所，用于预防火灾和保护人们的生命安全。烟雾传感器通常由烟雾感应器和火警报警器组成，能够快速检测到烟雾和火灾，并及时发出警报，提醒人们采取必要的措施。\n烟雾传感器的工作原理是基于烟雾的物理特性和化学特性。烟雾传感器通常使用烟雾感应器来检测烟雾颗粒的数量和大小。烟雾感应器通常使用电容、电感或光学原理来检测烟雾颗粒的数量和大小，当烟雾颗粒的数量和大小超过预设阈值时，烟雾传感器就会发出警报。",
+    "EquipmentPerformance": "工作电压：3.3-5V（DC）\n电流：100MA\n功率：0.5W\n尺寸：47.6MM *23.8MM\n工作温度：-10℃~+50℃",
+    "CommunicationMode": "接口：4PIN接口\n输出信号：数字信号和模拟信号",
+    "ImagePath": "Assets/Overview/12.png",
+    "DeviceImagePath": "Assets/DeviceConnect/yw.png"
+  },
+  {
+    "TrainTaskId": 1,
+    "DeviceName": "LED模块",
+    "TrainIntroduction": "本实验采用的LED模块有三种三色，由三个引脚分别控制。其中R控制显示红色，G控制显示绿色，B控制显示蓝色；高电平控 制 LED 灯亮；低电平控制 LED 灯灭。",
+    "EquipmentPerformance": "LED驱动模式：共阳驱动\n工作电压：5V\n电流20mA\n最大功率：0.1W\n工作温度范围：-10℃~+50℃\n尺寸：31.6mmx23.5mm",
+    "CommunicationMode": "接口：5PIN接口\n输入信号：PWM信号",
+    "ImagePath": "Assets/Overview/13.png",
+    "DeviceImagePath": "Assets/DeviceConnect/LED.png"
+
+  },
+  {
+    "TrainTaskId": 6,
+    "DeviceName": "OLED显示模块",
+    "TrainIntroduction": "本实验采用的OLED显示器是一种自发光显示器，具有高对比度、高亮度、低功耗、响应速度快等特点。OLED显示器通常由多个有机发光二极管（OLED）组成，通过控制每个OLED的亮度来显示图像。常见的OLED显示器驱动方式有静态驱动和动态驱动两种。",
+    "EquipmentPerformance": "尺 寸：1.30英寸 OLED 屏幕\n分 辨 率：128*64\n显示颜色：白色/蓝色\n显示区域：29.42×14.7(mm)\n工作温度：-40～70℃",
+    "CommunicationMode": "接口：SPI/IIC/8位并口",
+    "ImagePath": "Assets/Overview/14.png",
+    "DeviceImagePath": "Assets/DeviceConnect/OLED.png"
+  },
+  {
+    "TrainTaskId": 2,
+    "DeviceName": "蜂鸣器模块",
+    "TrainIntroduction": "本实验采用的蜂鸣器模块接上电源后，通过给信号端输入个高电平信号，控制蜂鸣器响起,反之低电平关闭。",
+    "EquipmentPerformance": "工作电压：3.3-5V（DC）\n电流：50MA\n工作温度：-10℃~+50℃\n尺寸：31.6mmx23.7mm",
+    "CommunicationMode": "接口：3PIN接口\n输入信号：数字信号",
+    "ImagePath": "Assets/Overview/15.png",
+    "DeviceImagePath": "Assets/DeviceConnect/fmq.png"
+  },
+  {
+    "TrainTaskId": 7,
+    "DeviceName": "语音播报模块",
+    "TrainIntroduction": "本实验采用Emakefun MP3语音模块，内置8 MB存储空间，无需外接SD卡，若一个音效以秒计算，8M的内存可以存储两百多个音效供您选用。存储方式和使用U盘一样简单，可随时更新模块内的音效。该MP3适用于各种需要有音效或者语音的项目，例如：智能小车、气象站、智能家居、车载导航、收费站、安监检测、机器语音导航等等。模块板载喇叭接口，可以直接推动8Ω3W无源小喇叭，使用简单。",
+    "EquipmentPerformance": "工作电压：3.3V-5V\n支持MP3 WAV硬件解码\n支持采样率（KHz）：8/11.025/12/16/22.05/24/32/44.1/48\n支持SPIFLASH模拟成U盘，直接操作U盘一样更新SPIFLASH里的语音\n支持30级音量调节",
+    "CommunicationMode": "接口：UART",
+    "ImagePath": "Assets/Overview/16.png",
+    "DeviceImagePath": "Assets/DeviceConnect/yybb.png"
+  },
+  {
+    "TrainTaskId": 3,
+    "DeviceName": "继电器模块",
+    "TrainIntroduction": "本实验采用继电器拨动开关可以选择高或者低电平触发方式便继电器吸合动作，带有继电器吸合指示灯方便观察继电器状态。当把拨动升关拨到H时为高电平触发方式，当把拨动开关拨到L时为低电平触发方式。有触发信号使继电器吸合，此时来回拨动开关还可以实现手动控制继电器的吸合。",
+    "EquipmentPerformance": "工作电压：3.3-5V（DC）\n电流：50MA\n工作温度：-10℃~+50℃\n尺寸：31.6mmx23.7mm",
+    "CommunicationMode": "接口：3PIN接口\n输入信号：数字信号",
+    "ImagePath": "Assets/Overview/17.png",
+    "DeviceImagePath": "Assets/DeviceConnect/jdq.png"
+  },
+  {
+    "TrainTaskId": 5,
+    "DeviceName": "直流电机模块",
+    "TrainIntroduction": "本实验采用直流电机由一个R300C型直流电机作为动力，顺时针转动，带动扇叶往前吹风，只能顺时针转动。",
+    "EquipmentPerformance": "工作电压：3.3-5V（DC）\n电流：50MA\n工作温度：-10℃~+50℃\n尺寸：31.6mmx23.7mm",
+    "CommunicationMode": "接口：3PIN接口\n输入信号：数字信号",
+    "ImagePath": "Assets/Overview/18.png",
+    "DeviceImagePath": "Assets/DeviceConnect/zldj.png"
+  },
+  {
+    "TrainTaskId": 19,
+    "DeviceName": "环境监测",
+    "TrainIntroduction": "近年来，随着国家对环境越来越重视以及资源可持续发展的需求，提出了像《打赢蓝天保卫战》等多部法律法规，法规要求每行每业都严格遵守环保的要求，并尽量降低对环境的影响。而施工工地由于存在废水、扬尘、噪音等众多因素，加上全国工地基数庞大，一直是政府严管对象。\n随着物联传感技术在工程建设项目中的应用，通过监测设备，对建设工程施工现场的气象参数、扬尘参数等进行监测与显示，实现对建设工程扬尘监测设备采集到的PM2.5、PM10、TSP等扬尘数据，噪音数据，风速、风向、温度、湿度和大气压等数据进行展示，并对以上数据进行分时段统计，实现对工程施工现场扬尘污染等监控监测的远程化、可视化。",
+    "EquipmentPerformance": "本实验所用模块包括温湿度传感器、风速/风向传感器、分贝传感器、PM2.5/PM10/TSP传感器、LED模块、蜂鸣器模块",
+    "CommunicationMode": "环境指标数值的监测与预警",
+    "ImagePath": "Assets/ZHTrain/hjjc.png",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 20,
+    "DeviceName": "危大工程监测",
+    "TrainIntroduction": "危大工程，即危险性较大的分部分项工程，包括基坑工程、模板工程及支撑体系、起重吊装及安装拆卸工程、脚手架工程等。在实际施工过程中，由于施工队伍素质不高、管理不规范、材料或设备质量差等问题，导致危大工程事故频发。\n为加强危大工程的过程监管，基于物联网技术对危大工程进行全天候监测，实时动态展示监测对象的实时状态及监测的变化趋势，做到及时预警，为落实危大工程的安全管理提供技术保障。",
+    "EquipmentPerformance": "本实验所用模块包括位移传感器、倾角传感器、压力传感器、LED模块、蜂鸣器模块",
+    "CommunicationMode": "高支模受力/形变的监测与预警",
+    "ImagePath": "Assets/ZHTrain/wdgc.png",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 21,
+    "DeviceName": "临边防护监测",
+    "TrainIntroduction": "施工现场四口、五临边，如：预留洞口、电梯井口、通道口、楼梯口以及破损护栏等位置容易发生人员坠落等安全事故。\n通过搭载红外传感装置，在危险区域及时探测人员，并警告人员注意安全，起到安全防护的作用。",
+    "EquipmentPerformance": "本实验所用模块包括红外传感器、LED模块、蜂鸣器模块",
+    "CommunicationMode": "临边防护的监控与预警",
+    "ImagePath": "Assets/ZHTrain/lbfh.png",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 22,
+    "DeviceName": "现场隐患监测",
+    "TrainIntroduction": "火灾是建筑工地可能发生的安全事故之一。临时用电、明火作业等管理不善，员工违规使用电器等都有可能发生火灾事故。基于烟雾监测技术，全时侦测现场情况，提供火灾安全风险事件识别和报警服务，满足不同工地应用场景安全管理需要。",
+    "EquipmentPerformance": "本实验所用模块包括烟雾传感器、LED模块、蜂鸣器模块",
+    "CommunicationMode": "现场火灾隐患的监测与预警",
+    "ImagePath": "Assets/ZHTrain/yhjc.png",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 23,
+    "DeviceName": "工地节能",
+    "TrainIntroduction": "施工现场如临时用水、用电等资源日消耗量大，是一笔不小的成本投入。为倡导节能环保，方便施工企业对工程能源消耗高效把控，减少水电资源的浪费，可基于物联网技术，对水电资源使用的各种场景进行实时监测与智能控制，杜绝各种资源浪费现象。",
+    "EquipmentPerformance": "本实验所用模块包括光线传感器、继电器",
+    "CommunicationMode": "光线监测与节能控制",
+    "ImagePath": "Assets/ZHTrain/jnkz.png",
+    "DeviceImagePath": ""
+  },
+    {
+    "TrainTaskId": 32,
+    "DeviceName": "zigbee无线组网",
+    "TrainIntroduction": "zigbee无线组网广泛应用于施工现场。",
+    "EquipmentPerformance": "zigbee无线组网在空旷地带，有效传输距离300-400m",
+    "CommunicationMode": "接口：UART",
+    "ImagePath": "Assets/ZHTrain/zigbee.png",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 24,
+    "DeviceName": "安全帽识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 25,
+    "DeviceName": "反光衣识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 26,
+    "DeviceName": "烟雾识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 27,
+    "DeviceName": "明火识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 28,
+    "DeviceName": "劳务人脸识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 29,
+    "DeviceName": "车辆进出识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 30,
+    "DeviceName": "物料识别",
+    "TrainIntroduction": "",
+    "EquipmentPerformance": "",
+    "CommunicationMode": null,
+    "ImagePath": "",
+    "DeviceImagePath": ""
+  },
+  {
+    "TrainTaskId": 4,
+    "DeviceName": "激光传感器",
+    "TrainIntroduction": "这是一款基于VL53L0X设计的飞行时间(ToF)测距模块，精确测距范围可达2米，I2C接口通信，低功耗。 VL53L0X采用940nm垂直腔面发射激光器（Vertical-Cavity Surface-Emitting Laser，简称VCSEL)发射出激光，激光碰到障碍物后反射回来被VL53L0X接收到，测量激光在空气中的传播时间，进而得到距离。",
+    "EquipmentPerformance": "工作电压：3.3V/5V \n测距范围：30 ~ 2000mm \n测距精度：± 5% (高速模式)，±3% (高精度模式) \n测距时间(min)：20ms (高速模式)，200ms(高精度模式) \n测距角度：25° \n工作温度:-20 ~ 70°C",
+    "CommunicationMode":  "接口：标准IIC/SPI",
+    "ImagePath": "Assets/Overview/19.png",
+    "DeviceImagePath": "Assets/DeviceConnect/jg.png"
+  },
+  {
+    "TrainTaskId": 31,
+    "DeviceName": "超声波传感器",
+    "TrainIntroduction": "超声波传感器是一种使用超声波技术进行测距的模块；模块稳定测试距离为2~450cm",
+    "EquipmentPerformance": "工作电压：3.3V/5V \n测距范围：2 ~ 450cm \n常温测距精度：± （1+S*0.5%)CM \n参考角度：≈50 \n测距角度：25° \n盲区距离:0~2CM",
+    "CommunicationMode":  "接口：标准IIC/SPI",
+    "ImagePath": "Assets/Overview/20.png",
+    "DeviceImagePath": "Assets/DeviceConnect/csb.png"
+  }
+]

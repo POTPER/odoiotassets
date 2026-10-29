@@ -1,0 +1,38 @@
+﻿[
+  {
+    "TrainTaskId": 10,
+    "TrainTaskName": "光线\n传感器",
+    "TaskTypeId": 1,
+    "ImagePath": "Assets/TaskIcon/icon_gx.png",
+    "PythonExePath": "/usr/bin/python3",
+    "PythonScriptPath": "BRICS2026_Final_Sample_Light.py",
+    "OutputResults": "强度(Lux)",
+    "ResultsFilePath": "IoT/10-LightSensor/student_data/student_data.json",
+    "ScriptFloderPath": "IoT/10-LightSensor",
+    "TrainLineName": "",
+    "SensorName": "",
+    "OtherName": "",
+    "PrintNumber": "1",
+    "SceneVideoPath": "",
+    "AlarmVideoPath": ""
+  },
+  {
+    "TrainTaskId": 24,
+    "TrainTaskName": "安全帽\n识别",
+    "TaskTypeId": 3,
+    "ImagePath": "Assets/TaskIcon/icon_aqm.png",
+    "PythonExePath": "/usr/bin/python3",
+    "PythonScriptPath": "BRICS2026_Final_Sample_hat.py",
+    "OutputResults": "已佩戴人数|未佩戴人数",
+    "ResultsFilePath": "app/hat/hat20.png",
+    "ScriptFloderPath": "app/hat",
+    "TrainLineName": "",
+    "SensorName": "",
+    "OtherName": "",
+    "PrintNumber": "",
+    "SceneVideoPath": "",
+    "AlarmVideoPath": ""
+  }
+  
+  
+]
