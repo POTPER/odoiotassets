@@ -458,7 +458,7 @@ def main():
 
 
 # ==================== 11 程序启动 ====================
-# 在本目录运行：python3 Shandong2026_T2_Buzzer.py
+# 在本目录运行：python3 BRICS2026_Shandong_T2_Buzzer.py
 # 先保存用户设置再启动，完成现场试听后按Ctrl+C停止并检查归档文件。
 if __name__ == "__main__":
     sys.exit(main())

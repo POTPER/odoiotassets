@@ -1554,7 +1554,7 @@ def convert_image_buffer_to_cv2(virtaddr,width,height,size,fmt):
 
 # ==================== 14 初始化、运行与清理 ====================
 # 初始化设备及模型，建立推理缓冲区；运行结束后释放模型、图像与模块连接。
-# 运行：在本目录执行 python3 Shandong2026_T3_Helmet.py，默认通过摄像头完成四种场景验证。
+# 运行：在本目录执行 python3 BRICS2026_Shandong_T3_Helmet.py，默认通过摄像头完成四种场景验证。
 # 运行前保存用户设置，结束后提交本次CSV汇总表及同目录自动保存的Python入口源码。
 # 依赖OpenCV、NumPy、配套接口及动态库，以及model目录中的RKNN模型。
 

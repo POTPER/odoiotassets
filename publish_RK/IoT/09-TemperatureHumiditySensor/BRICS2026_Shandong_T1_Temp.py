@@ -582,7 +582,7 @@ def main(default_module=9):
 
 
 # ==================== 14 程序启动 ====================
-# 在本目录运行：python3 Shandong2026_T1_Temp.py
+# 在本目录运行：python3 BRICS2026_Shandong_T1_Temp.py
 # 先保存用户设置再启动，完成监测后按Ctrl+C停止并检查归档文件。
 if __name__ == "__main__":
     sys.exit(main())
