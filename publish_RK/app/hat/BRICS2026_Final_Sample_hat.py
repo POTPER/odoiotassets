@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # ==================== 01 演示说明与设置 ====================
-# 安全帽识别统计演示：读取摄像头、图片或视频，直接显示检测数量并保存识别记录和标注截图。
+# 安全帽识别统计演示：读取摄像头、图片或视频，直接显示检测数量并保存CSV及本次源码。
 # 本入口为完整演示程序，使用现有RK3588模型及原厂推理接口。
 # 运行：python3 BRICS2026_Final_Sample_hat.py
 # 图片：python3 BRICS2026_Final_Sample_hat.py --source testimg/test1.jpg
-# 输出：当前用户桌面/成果输出/安全帽识别演示/本次时间目录。
+# 输出：当前用户桌面/成果输出/考试编号/项目名称，与赛事版使用相同归档形式。
 
 import argparse
 import csv
 import ctypes
 import importlib.util
-import json
 import logging
 import math
 import os
 import platform
+import re
 import shutil
 import signal
 import socket
@@ -25,6 +25,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from threading import Event
+
+experiment_info = {
+    '考试编号': '演示',
+    '项目名称': '安全帽识别演示',
+    '监测点位': '演示点01',
+}
 
 ROOT = Path(__file__).resolve().parent
 MODEL_PATH = ROOT / 'model/hat_rk3588_fp.rknn'
@@ -78,65 +84,84 @@ def safe_cell(value):
     return "'" + value if isinstance(value, str) and value.lstrip().startswith(('=', '+', '-', '@')) else value
 
 
+def safe_path_component(value):
+    value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', str(value)).strip(' .')[:80].rstrip(' .') or '未命名'
+    reserved = {'CON', 'PRN', 'AUX', 'NUL'} | {'COM' + str(i) for i in range(1, 10)} | {'LPT' + str(i) for i in range(1, 10)}
+    return '_' + value if value.split('.')[0].upper() in reserved else value
+
+
 class DemoRecorder:
     FIELDS = ('记录时间', '输入源', '帧序号', '头部目标数', '安全帽目标数', '其他目标数',
               '最高置信度', '推理耗时(ms)', '处理结果', '错误信息')
 
-    def __init__(self, output_root, source, entry_path=__file__):
-        base = Path(output_root) if output_root is not None else desktop_path() / '成果输出/安全帽识别演示'
-        self.folder = base / datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-        self.folder.mkdir(parents=True, exist_ok=False)
-        self.csv_path = self.folder / '识别记录.csv'
-        self.image_path = self.folder / 'result.jpg'
-        self.summary_path = self.folder / 'summary.json'
+    def __init__(self, output_root, source, entry_path=__file__, metadata=None):
+        self.metadata = dict(experiment_info if metadata is None else metadata)
+        if any(not isinstance(k, str) or not k.strip() or k.strip() in self.FIELDS for k in self.metadata):
+            raise ValueError('实验信息字段名为空或与系统列重名')
+        identity = safe_path_component(str(self.metadata.get('考试编号') or '未命名').strip() or '未命名')
+        project = safe_path_component(str(self.metadata.get('项目名称') or '未命名实验').strip() or '未命名实验')
+        base = Path(output_root) if output_root is not None else desktop_path() / '成果输出'
+        self.folder = base / identity / project
+        self.folder.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now()
+        sequence = 1
+        while True:
+            suffix = '' if sequence == 1 else '_{}'.format(sequence)
+            stem = '{}_{}_{}{}_{}'.format(project, identity, stamp.strftime('%Y%m%d'), suffix, stamp.strftime('%H%M%S'))
+            self.csv_path = self.folder / (stem + '.csv')
+            self.code_path = self.folder / (stem + '.py')
+            self.error_path = self.folder / (stem.rsplit('_', 1)[0] + '_异常_' + stamp.strftime('%H%M%S') + '.csv')
+            if self.code_path.exists() or self.error_path.exists():
+                sequence += 1
+                continue
+            try:
+                stream = self.csv_path.open('x', encoding='utf-8-sig', newline='')
+                break
+            except FileExistsError:
+                sequence += 1
+        self.field_names = [self.FIELDS[0], *self.metadata, *self.FIELDS[1:]]
+        with stream:
+            csv.writer(stream).writerow(self.field_names)
         self.source = str(source)
         self.last_recorded_frame = 0
         self.frame_count = self.record_count = self.error_count = 0
         self.peaks = [0, 0, 0]
         self.started_at = datetime.now().isoformat(timespec='seconds')
         self.last_error = ''
-        shutil.copyfile(entry_path, self.folder / Path(entry_path).name)
-        with self.csv_path.open('x', encoding='utf-8-sig', newline='') as stream:
-            csv.writer(stream).writerow(self.FIELDS)
+        with self.code_path.open('xb') as target, Path(entry_path).open('rb') as original:
+            shutil.copyfileobj(original, target)
         self.finish('运行中')
-        LOG.info('本次演示输出目录：%s', self.folder)
+        LOG.info('成果CSV：%s；本次源码：%s', self.csv_path, self.code_path)
 
     def observe(self, frame_number, detections):
         self.frame_count = frame_number
         self.peaks = [max(old, now) for old, now in zip(self.peaks, counts_for(detections))]
 
-    def record(self, frame_number, detections, inference_ms, jpeg):
+    def record(self, frame_number, detections, inference_ms):
         counts = counts_for(detections)
         confidence = max((d.confidence for d in detections), default=None)
         row = [datetime.now().isoformat(timespec='milliseconds'), safe_cell(self.source), frame_number,
                *counts, '' if confidence is None else round(confidence, 4), round(inference_ms, 2), '识别成功', '']
         with self.csv_path.open('a', encoding='utf-8', newline='') as stream:
-            csv.writer(stream).writerow(row)
-        temporary = self.image_path.with_suffix('.jpg.tmp')
-        temporary.write_bytes(jpeg)
-        temporary.replace(self.image_path)
+            csv.writer(stream).writerow([row[0], *[safe_cell(v) for v in self.metadata.values()], *row[1:]])
         self.record_count += 1
         self.last_recorded_frame = frame_number
 
     def error(self, message, frame_number=''):
         self.error_count += 1
         self.last_error = str(message)
-        with self.csv_path.open('a', encoding='utf-8', newline='') as stream:
-            csv.writer(stream).writerow([datetime.now().isoformat(timespec='milliseconds'), safe_cell(self.source),
-                                        frame_number, '', '', '', '', '', '处理异常', safe_cell(self.last_error)])
+        exists = self.error_path.exists()
+        with self.error_path.open('a', encoding='utf-8-sig', newline='') as stream:
+            writer = csv.writer(stream)
+            if not exists:
+                writer.writerow(['记录时间', *self.metadata, '输入源', '帧序号', '处理结果', '错误信息'])
+            writer.writerow([datetime.now().isoformat(timespec='milliseconds'),
+                             *[safe_cell(v) for v in self.metadata.values()], safe_cell(self.source),
+                             frame_number, '处理异常', safe_cell(self.last_error)])
 
     def finish(self, status):
-        summary = {'演示名称': '安全帽识别统计演示', '状态': status, '输入源': self.source,
-                   '开始时间': self.started_at, '更新时间': datetime.now().isoformat(timespec='seconds'),
-                   '成功处理帧数': self.frame_count, '有效记录数': self.record_count,
-                   '单帧头部目标数峰值': self.peaks[0], '单帧安全帽目标数峰值': self.peaks[1],
-                   '单帧其他目标数峰值': self.peaks[2], '异常记录数': self.error_count,
-                   '最近错误': self.last_error, '记录文件': self.csv_path.name,
-                   '结果截图': self.image_path.name if self.image_path.is_file() else None,
-                   '统计口径': '各类检测目标的单帧数量；未跟踪人员，不代表累计人数或佩戴率'}
-        temporary = self.summary_path.with_suffix('.json.tmp')
-        temporary.write_text(json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False), encoding='utf-8')
-        temporary.replace(self.summary_path)
+        # 运行状态只留在内存及终端，不额外生成汇总文件。
+        self.status = status
 
 
 # ==================== 03 RK3588 模型适配 ====================
@@ -341,13 +366,13 @@ class PreviewSender:
 
 # ==================== 05 输入及环境检查 ====================
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description='完整的安全帽识别统计演示：画面、计数、CSV和结果截图')
+    parser = argparse.ArgumentParser(description='完整的安全帽识别统计演示：画面、计数、CSV及同次源码')
     parser.add_argument('--source', default=str(CAMERA_INDEX), help='摄像头编号、图片或本地视频，默认41')
     parser.add_argument('--model', type=Path, default=MODEL_PATH, help='RK3588模型路径')
     parser.add_argument('--duration', type=float, default=DEMO_SECONDS, help='视频演示秒数，默认30；0持续至手动停止')
     parser.add_argument('--record-interval', type=float, default=RECORD_INTERVAL, help='CSV记录间隔，默认1秒')
     parser.add_argument('--confidence', type=float, default=CONFIDENCE, help='显示目标的最低置信度，默认0.5')
-    parser.add_argument('--output-dir', type=Path, help='输出根目录；每次运行建立独立时间目录')
+    parser.add_argument('--output-dir', type=Path, help='成果根目录；其下按考试编号/项目名称归档')
     parser.add_argument('--show', action='store_true', help='额外打开OpenCV预览窗口，Q或ESC结束')
     parser.add_argument('--no-udp', action='store_true', help='关闭本机画面回传，仍保存本地结果')
     parser.add_argument('--check', action='store_true', help='仅静态检查环境，不运行模型或摄像头、不生成成果')
@@ -464,7 +489,7 @@ def run_demo(args, detector_factory=NativeDetector):
                 raise RuntimeError('结果画面JPEG编码失败')
             jpeg = encoded.tobytes()
             recorder.observe(number, detections)
-            pending = (number, detections, inference_ms, jpeg)
+            pending = (number, detections, inference_ms)
             now = time.monotonic()
             if now - last_recorded >= args.record_interval:
                 flush_pending()
