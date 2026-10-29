@@ -1,0 +1,11 @@
+# HISTORICAL REFERENCE ONLY: not a validated V20 conversion environment.
+# Check the current official toolchain and board runtime before installing.
+# Separate x86_64 Linux / Python 3.11 environment for model conversion.
+# Match the current Ultralytics RKNN export environment; do not install on board.
+ultralytics>=8.4.0
+torch==2.4.1
+torchvision==0.19.1
+onnx>=1.16.1,<1.19.0
+onnxruntime>=1.17,<2
+rknn-toolkit2>=2.3.2,<2.5
+setuptools<82

@@ -1,0 +1,56 @@
+﻿[
+  
+  {
+    "TrainTaskId": 2,
+    "TrainTaskName": "蜂鸣器\n模块",
+    "TaskTypeId": 1,
+    "ImagePath": "Assets/TaskIcon/icon_fmq.png",
+    "PythonExePath": "/usr/bin/python3",
+    "PythonScriptPath": "BRICS2026_Shandong_T2_Buzzer.py",
+    "OutputResults": "执行器状态",
+    "ResultsFilePath": "IoT/02-ActiveBuzzer/student_data/student_data.json",
+    "ScriptFloderPath": "IoT/02-ActiveBuzzer",
+    "TrainLineName": "",
+    "SensorName": "",
+    "OtherName": "",
+    "PrintNumber": "1",
+    "SceneVideoPath": "",
+    "AlarmVideoPath": ""
+  },
+  {
+    "TrainTaskId": 9,
+    "TrainTaskName": "温湿度\n传感器",
+    "TaskTypeId": 1,
+    "ImagePath": "Assets/TaskIcon/icon_wsd.png",
+    "PythonExePath": "/usr/bin/python3",
+    "PythonScriptPath": "BRICS2026_Shandong_T1_Temp.py",
+    "OutputResults": "温度(℃)|湿度（%RH）",
+    "ResultsFilePath": "IoT/09-TemperatureHumiditySensor/student_data/student_data.json",
+    "ScriptFloderPath": "IoT/09-TemperatureHumiditySensor",
+    "TrainLineName": "",
+    "SensorName": "",
+    "OtherName": "",
+    "PrintNumber": "1",
+    "SceneVideoPath": "",
+    "AlarmVideoPath": ""
+  },
+  {
+    "TrainTaskId": 24,
+    "TrainTaskName": "安全帽\n识别",
+    "TaskTypeId": 3,
+    "ImagePath": "Assets/TaskIcon/icon_aqm.png",
+    "PythonExePath": "/usr/bin/python3",
+    "PythonScriptPath": "BRICS2026_Shandong_T3_Helmet.py",
+    "OutputResults": "已佩戴人数|未佩戴人数",
+    "ResultsFilePath": "app/hat/hat.png",
+    "ScriptFloderPath": "app/hat",
+    "TrainLineName": "",
+    "SensorName": "",
+    "OtherName": "",
+    "PrintNumber": "",
+    "SceneVideoPath": "",
+    "AlarmVideoPath": ""
+  }
+ 
+  
+]

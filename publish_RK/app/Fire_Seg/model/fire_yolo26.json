@@ -1,0 +1,18 @@
+{
+  "task": "detect",
+  "labels": ["fire", "smoke"],
+  "target_platform": "rk3588",
+  "input_size": [640, 640],
+  "input_layout": "NHWC",
+  "input_dtype": "uint8",
+  "color_order": "RGB",
+  "normalization": "embedded_mean0_std255",
+  "num_classes": 2,
+  "output_format": "ultralytics_raw",
+  "output_shapes": [[1, 6, 8400]],
+  "normalized_boxes": false,
+  "letterbox_color": 114,
+  "precision": "fp16",
+  "compiler_version": "2.3.2",
+  "source_model_sha256": "31f07bc29c7366b0ae86730084ed89b30bd0c347d4771d0350719f1ccea5dc5f"
+}

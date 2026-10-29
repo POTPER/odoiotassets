@@ -1,0 +1,6 @@
+# Use existing board-vendor-compatible packages when available.
+numpy>=1.21
+opencv-python>=4.5
+PyYAML>=6.0
+Pillow>=6.2
+# Install the matching RKNNLite ARM64 wheel separately.
