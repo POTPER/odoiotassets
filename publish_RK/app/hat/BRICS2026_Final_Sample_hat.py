@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-# ==================== 01 演示说明与设置 ====================
-# 安全帽识别统计演示：读取摄像头、图片或视频，直接显示检测数量并保存CSV及本次源码。
-# 本入口为完整演示程序，使用现有RK3588模型及原厂推理接口。
-# 运行：python3 BRICS2026_Final_Sample_hat.py
-# 图片：python3 BRICS2026_Final_Sample_hat.py --source testimg/test1.jpg
-# 输出：当前用户桌面/成果输出/考试编号/项目名称，与赛事版使用相同归档形式。
+# -*- coding: utf-8 -*-
+# 安全帽识别统计练习。
 
+# ==================== 01 程序依赖 ====================
 import argparse
 import csv
 import ctypes
@@ -26,26 +23,54 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event
 
+# ==================== 02 用户设置 ====================
+# >>>>>>>>>>>>>>>>>>>> TODO 1：基础信息 >>>>>>>>>>>>>>>>>>>>
+# 将任务编号设置为“24”，任务名称设置为“安全帽识别”。
 experiment_info = {
-    '考试编号': '演示',
-    '项目名称': '安全帽识别演示',
-    '监测点位': '演示点01',
+    '任务编号': '任务xx',
+    '任务名称': '实验24',
 }
+# <<<<<<<<<<<<<<<<<<<< TODO 1：结束 <<<<<<<<<<<<<<<<<<<<<<
 
+# >>>>>>>>>>>>>>>>>>>> TODO 2：参数设置 >>>>>>>>>>>>>>>>>>>>
+# 将识别置信度修改为0.6，CSV记录间隔修改为5秒/次。
+CONFIDENCE = 0.5
+RECORD_INTERVAL = 1.0
+# <<<<<<<<<<<<<<<<<<<< TODO 2：结束 <<<<<<<<<<<<<<<<<<<<<<
+
+# >>>>>>>>>>>>>>>>>>>> TODO 3：数量判断 >>>>>>>>>>>>>>>>>>>>
+# 根据安全帽目标数返回结果：0为“未检测到”，1为“单个目标”，大于1为“多个目标”。
+# Python语法与逻辑：
+# def 定义函数；括号中的 hat_count 是接收传入数量的参数。
+# if / elif 依次判断条件，条件成立时执行对应分支；else 处理其余情况。
+# == 表示判断是否相等，比较结果为 True（真）或 False（假）；= 用于赋值。
+# return 返回结果并结束本次函数调用；引号中的文字是字符串。
+# 冒号表示代码块开始，使用缩进表示代码的层级关系。
+def describe_hat_count(hat_count):
+    if hat_count == 0:
+        return '未检测到'
+    elif hat_count == 1:
+        return '单个目标'
+    else:
+        return '多个目标'
+# <<<<<<<<<<<<<<<<<<<< TODO 3：结束 <<<<<<<<<<<<<<<<<<<<<<
+
+
+# ==================== 03 系统设置 ====================
 ROOT = Path(__file__).resolve().parent
 MODEL_PATH = ROOT / 'model/hat_rk3588_fp.rknn'
 CAMERA_INDEX = 41
 DEMO_SECONDS = 30
-RECORD_INTERVAL = 1.0
-CONFIDENCE = 0.5
 CLASS_NAMES = ('head', 'hat', 'black')
 # 演示配色：head橙色，hat青色，black灰色，按BGR顺序。
 CLASS_COLORS = ((0, 165, 255), (255, 210, 0), (150, 150, 150))
+# OpenCV默认字体使用英文显示，CSV及终端保留中文判断结果。
+HAT_COUNT_LABELS = {'未检测到': 'No hats', '单个目标': 'Single hat', '多个目标': 'Multiple hats'}
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 LOG = logging.getLogger('helmet_demo')
 
 
-# ==================== 02 结果与输出文件 ====================
+# ==================== 04 结果与输出文件 ====================
 @dataclass(frozen=True)
 class Detection:
     class_id: int
@@ -92,14 +117,19 @@ def safe_path_component(value):
 
 class DemoRecorder:
     FIELDS = ('记录时间', '输入源', '帧序号', '头部目标数', '安全帽目标数', '其他目标数',
-              '最高置信度', '推理耗时(ms)', '处理结果', '错误信息')
+              '安全帽数量判断', '最高置信度', '识别置信度阈值', '记录间隔(秒/次)', '推理耗时(ms)', '处理结果', '错误信息')
 
-    def __init__(self, output_root, source, entry_path=__file__, metadata=None):
+    def __init__(self, output_root, source, entry_path=__file__, metadata=None, confidence=None, record_interval=None):
         self.metadata = dict(experiment_info if metadata is None else metadata)
+        self.confidence = CONFIDENCE if confidence is None else confidence
+        self.record_interval = RECORD_INTERVAL if record_interval is None else record_interval
+        for key in ('任务编号', '任务名称'):
+            if not isinstance(self.metadata.get(key), str) or not self.metadata[key].strip():
+                raise ValueError('{}必须为非空文字'.format(key))
         if any(not isinstance(k, str) or not k.strip() or k.strip() in self.FIELDS for k in self.metadata):
             raise ValueError('实验信息字段名为空或与系统列重名')
-        identity = safe_path_component(str(self.metadata.get('考试编号') or '未命名').strip() or '未命名')
-        project = safe_path_component(str(self.metadata.get('项目名称') or '未命名实验').strip() or '未命名实验')
+        identity = safe_path_component(self.metadata['任务编号'])
+        project = safe_path_component(self.metadata['任务名称'])
         base = Path(output_root) if output_root is not None else desktop_path() / '成果输出'
         self.folder = base / identity / project
         self.folder.mkdir(parents=True, exist_ok=True)
@@ -141,7 +171,8 @@ class DemoRecorder:
         counts = counts_for(detections)
         confidence = max((d.confidence for d in detections), default=None)
         row = [datetime.now().isoformat(timespec='milliseconds'), safe_cell(self.source), frame_number,
-               *counts, '' if confidence is None else round(confidence, 4), round(inference_ms, 2), '识别成功', '']
+               *counts, describe_hat_count(counts[1]), '' if confidence is None else round(confidence, 4), self.confidence,
+               self.record_interval, round(inference_ms, 2), '识别成功', '']
         with self.csv_path.open('a', encoding='utf-8', newline='') as stream:
             csv.writer(stream).writerow([row[0], *[safe_cell(v) for v in self.metadata.values()], *row[1:]])
         self.record_count += 1
@@ -164,7 +195,7 @@ class DemoRecorder:
         self.status = status
 
 
-# ==================== 03 RK3588 模型适配 ====================
+# ==================== 05 RK3588 模型适配 ====================
 def load_native_api():
     # 原接口按相对路径加载.so，仅在导入接口期间切换目录，随后立即恢复。
     # 本演示不导入比赛入口或设备控制模块。
@@ -306,7 +337,7 @@ class NativeDetector:
         return errors
 
 
-# ==================== 04 标注画面及原协议回传 ====================
+# ==================== 06 标注画面及原协议回传 ====================
 def render_frame(frame, detections, frame_number, inference_ms, cv2):
     height, width = frame.shape[:2]
     scale = min(1.0, 720.0 / max(width, height))
@@ -327,12 +358,15 @@ def render_frame(frame, detections, frame_number, inference_ms, cv2):
         cv2.putText(preview, label, (lx + 4, ly - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (20, 20, 20), 1, cv2.LINE_AA)
     heads, hats, other = counts_for(detections)
     # 统计条放在画面下方，检测框保持原图对应关系。
-    view = cv2.copyMakeBorder(preview, 0, 68, 0, 0, cv2.BORDER_CONSTANT, value=(32, 25, 18))
+    view = cv2.copyMakeBorder(preview, 0, 94, 0, 0, cv2.BORDER_CONSTANT, value=(32, 25, 18))
     y = preview.shape[0]
     cv2.putText(view, 'HELMET VISION DEMO | Frame {}'.format(frame_number), (10, y + 24),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
     cv2.putText(view, 'head: {}   hat: {}   other: {}   inference: {:.1f} ms'.format(heads, hats, other, inference_ms),
                 (10, y + 51), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 225, 130), 1, cv2.LINE_AA)
+    result = describe_hat_count(hats)
+    cv2.putText(view, 'Hat count: {}'.format(HAT_COUNT_LABELS.get(result, result)), (10, y + 78),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 225, 130), 1, cv2.LINE_AA)
     return view
 
 
@@ -364,15 +398,17 @@ class PreviewSender:
             self.socket.close()
 
 
-# ==================== 05 输入及环境检查 ====================
+# ==================== 07 输入及环境检查 ====================
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='完整的安全帽识别统计演示：画面、计数、CSV及同次源码')
     parser.add_argument('--source', default=str(CAMERA_INDEX), help='摄像头编号、图片或本地视频，默认41')
     parser.add_argument('--model', type=Path, default=MODEL_PATH, help='RK3588模型路径')
     parser.add_argument('--duration', type=float, default=DEMO_SECONDS, help='视频演示秒数，默认30；0持续至手动停止')
-    parser.add_argument('--record-interval', type=float, default=RECORD_INTERVAL, help='CSV记录间隔，默认1秒')
-    parser.add_argument('--confidence', type=float, default=CONFIDENCE, help='显示目标的最低置信度，默认0.5')
-    parser.add_argument('--output-dir', type=Path, help='成果根目录；其下按考试编号/项目名称归档')
+    parser.add_argument('--record-interval', type=float, default=RECORD_INTERVAL,
+                        help='CSV记录间隔，默认{}秒'.format(RECORD_INTERVAL))
+    parser.add_argument('--confidence', type=float, default=CONFIDENCE,
+                        help='显示目标的最低置信度，默认{}'.format(CONFIDENCE))
+    parser.add_argument('--output-dir', type=Path, help='成果根目录；其下按任务编号/任务名称归档')
     parser.add_argument('--show', action='store_true', help='额外打开OpenCV预览窗口，Q或ESC结束')
     parser.add_argument('--no-udp', action='store_true', help='关闭本机画面回传，仍保存本地结果')
     parser.add_argument('--check', action='store_true', help='仅静态检查环境，不运行模型或摄像头、不生成成果')
@@ -387,6 +423,9 @@ def parse_args(argv=None):
 
 
 def check_environment(args):
+    for key in ('任务编号', '任务名称'):
+        if not isinstance(experiment_info.get(key), str) or not experiment_info[key].strip():
+            raise ValueError('{}必须为非空文字'.format(key))
     for name in ('cv2', 'numpy'):
         if importlib.util.find_spec(name) is None:
             raise RuntimeError('缺少Python依赖：{}'.format(name))
@@ -427,10 +466,10 @@ def open_capture(source, live, cv2):
     raise RuntimeError('输入无法读取，请检查摄像头编号、设备占用或视频文件')
 
 
-# ==================== 06 演示流程 ====================
+# ==================== 08 演示流程 ====================
 def run_demo(args, detector_factory=NativeDetector):
     # 先创建输出目录，加载或采集失败时也尽可能留下真实错误记录。
-    recorder = DemoRecorder(args.output_dir, args.source)
+    recorder = DemoRecorder(args.output_dir, args.source, confidence=args.confidence, record_interval=args.record_interval)
     detector = capture = None
     sender = PreviewSender(not args.no_udp)
     stopped = Event()
@@ -495,8 +534,9 @@ def run_demo(args, detector_factory=NativeDetector):
                 flush_pending()
                 recorder.finish('运行中')
                 last_recorded = now
-                LOG.info('帧%d：头部目标=%d，安全帽目标=%d，其他目标=%d，推理=%.1fms',
-                         number, *counts_for(detections), inference_ms)
+                counts = counts_for(detections)
+                LOG.info('帧%d：头部目标=%d，安全帽目标=%d，其他目标=%d，数量判断=%s，推理=%.1fms',
+                         number, *counts, describe_hat_count(counts[1]), inference_ms)
             try:
                 sender.send(jpeg, counts_for(detections))
             except OSError as exc:
@@ -556,6 +596,9 @@ def run_demo(args, detector_factory=NativeDetector):
     return exit_code
 
 
+# ==================== 09 程序入口 ====================
+# 运行：python3 BRICS2026_Final_Sample_hat.py
+# 成果：当前设备用户桌面/成果输出/任务编号/任务名称/。
 def main(argv=None):
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
