@@ -30,8 +30,14 @@ def light_status(lux, target):
     return '照度不足' if lux < target else '正常'
 
 
+def metadata_fields(metadata):
+    if '任务编号' in metadata or '任务名称' in metadata:
+        return ('任务编号', '任务名称')
+    return ('考试编号', '项目名称', '监测点位')
+
+
 def validate_config(metadata, config):
-    for key in ('考试编号', '项目名称', '监测点位'):
+    for key in metadata_fields(metadata):
         if not isinstance(metadata.get(key), str) or not metadata[key].strip():
             raise ValueError('{}必须填写非空文字'.format(key))
     if any(not isinstance(k, str) or not k.strip() or k in ResultLog.COLUMNS for k in metadata):
@@ -93,7 +99,7 @@ class ResultLog:
     def __init__(self, metadata, config, entry_path, output_root=None):
         self.metadata = dict(metadata)
         self.config = dict(config)
-        identity, project = (safe_name(metadata[k]) for k in ('考试编号', '项目名称'))
+        identity, project = (safe_name(metadata[k]) for k in metadata_fields(metadata)[:2])
         base = Path(output_root) if output_root is not None else find_desktop() / '成果输出'
         self.folder = base / identity / project
         self.folder.mkdir(parents=True, exist_ok=True)
@@ -377,10 +383,12 @@ def run_session(metadata, config, entry_path, output_root=None, *,
     return exit_code
 
 
-def launch(metadata, config, entry_path, argv=None):
-    parser = argparse.ArgumentParser(description='V5 施工通道照明监测；运行前保存代码，一次只启动一个入口')
+def launch(metadata, config, entry_path, argv=None, description=None):
+    parser = argparse.ArgumentParser(description=description if description is not None else
+                                     'V5 施工通道照明监测；运行前保存代码，一次只启动一个入口')
     parser.add_argument('--check', action='store_true', help='仅检查配置、语法和配套文件，不连接硬件')
-    parser.add_argument('--output-dir', type=Path, help='成果根目录；其下仍按考试编号/项目名称分目录')
+    parser.add_argument('--output-dir', type=Path,
+                        help='成果根目录；其下按{}/{}分目录'.format(*metadata_fields(metadata)[:2]))
     parser.add_argument('--no-udp', action='store_true', help='停用UDP；仍写本地JSON和CSV')
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%H:%M:%S')
