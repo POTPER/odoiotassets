@@ -39,7 +39,9 @@ RECORD_INTERVAL = 1.0
 # <<<<<<<<<<<<<<<<<<<< TODO 2：结束 <<<<<<<<<<<<<<<<<<<<<<
 
 # >>>>>>>>>>>>>>>>>>>> TODO 3：数量判断 >>>>>>>>>>>>>>>>>>>>
-# 根据安全帽目标数返回结果：0为“未检测到”，1为“单个目标”，大于1为“多个目标”。
+# 根据 hat_count 补全 if / elif / else 判断：0返回“未检测到”，1返回“单个目标”，大于1返回“多个目标”。
+# hat_count 表示当前一帧画面中识别到的安全帽目标数量，取值为0、1、2等非负整数。
+# 该数量由系统统计类别为 hat 的检测结果后传入函数，每帧分别统计。
 # Python语法与逻辑：
 # def 定义函数；括号中的 hat_count 是接收传入数量的参数。
 # if / elif 依次判断条件，条件成立时执行对应分支；else 处理其余情况。
@@ -47,12 +49,9 @@ RECORD_INTERVAL = 1.0
 # return 返回结果并结束本次函数调用；引号中的文字是字符串。
 # 冒号表示代码块开始，使用缩进表示代码的层级关系。
 def describe_hat_count(hat_count):
-    if hat_count == 0:
-        return '未检测到'
-    elif hat_count == 1:
-        return '单个目标'
-    else:
-        return '多个目标'
+    # 在此编写判断逻辑。
+
+    return '待完善'
 # <<<<<<<<<<<<<<<<<<<< TODO 3：结束 <<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -65,7 +64,7 @@ CLASS_NAMES = ('head', 'hat', 'black')
 # 演示配色：head橙色，hat青色，black灰色，按BGR顺序。
 CLASS_COLORS = ((0, 165, 255), (255, 210, 0), (150, 150, 150))
 # OpenCV默认字体使用英文显示，CSV及终端保留中文判断结果。
-HAT_COUNT_LABELS = {'未检测到': 'No hats', '单个目标': 'Single hat', '多个目标': 'Multiple hats'}
+HAT_COUNT_LABELS = {'未检测到': 'No hats', '单个目标': 'Single hat', '多个目标': 'Multiple hats', '待完善': 'Incomplete'}
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 LOG = logging.getLogger('helmet_demo')
 
