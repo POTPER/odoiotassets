@@ -1,0 +1,219 @@
+﻿[
+  {
+    "TrainTaskId": 9,
+    "Functiondescription": "每隔 2s 打印输出一次当前环境的温度/气压/湿度",
+    "SamplefileName": "TemperatureHumiditySensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n#模块地址\nmodIndex = 9\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\nif __name__ == \"__main__\":\n    send_count = 0\n\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    \n    #初始化温湿度模块\n    sensor = AHT20(modIndex)\n\n    try:\n        send_count = 0  # 发送计数\n        # 设置传感器频率、目标值和最大值\n        sleep_time = 1  # 设置频率为1秒\n        degrees_sensor_target_value = 0  # 设置目标数值\n        degrees_sensor_maximum_value = 0  # 设置最大数值\n        hectopascals_sensor_target_value = 0  # 设置目标数值\n        hectopascals_sensor_maximum_value = 0  # 设置最大数值\n        humidity_sensor_target_value = 0  # 设置目标数值\n        humidity_sensor_maximum_value = 0  # 设置最大数值\n        run_sensor(modules,sensor, sleep_time, send_count)\n\n    except KeyboardInterrupt:\n        pass\n\n    finally:\n        sensor.uninit()\n        modules.modDisconnect(modIndex)\n        modules.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId": 16,
+    "Functiondescription": "每隔1s读取一次当前风速值",
+    "SamplefileName": "WindSpeedSensor_Demo1.py",
+    "SamplefileCode": "#模块参数\nTX_PIN = 23\nRX_PIN = 22\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nmodIndex = 15\nwind_speed_sensor=None\n\nif __name__ == \"__main__\":\n\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n       modStatus=0\n    else:\n        modStatus=1\n    try:\n# --------------------------------------------------------------\n# 参数设置区\n# 用户可以根据自己的实验需求调整以下参数。\n# 请用户在了解每个参数含义后，根据实验需要进行合理设置。\n# --------------------------------------------------------------       \n       sleep_time = 1  # 设置频率为1秒\n       windSpeed_sensor_target_value = 0  # 设置目标数值\n       windSpeed_sensor_maximum_value = 0  # 设置最大数值\n       wind_speed_sensor = WindSpeed(modIndex,com_index,TX_PIN,RX_PIN)\n       run_sensor(wind_speed_sensor, sleep_time, windSpeed_sensor_target_value, windSpeed_sensor_maximum_value)\n   except ValueError:\n       print(\"\n设备断开连接\")\n   except KeyboardInterrupt:\n       print(\"\n用户中断程序\")\n   finally:\n       wind_speed_sensor.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId": 15,
+    "Functiondescription": "每隔1s读取一次当前风向",
+    "SamplefileName": "WindDirectionSensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n#模块参数\nTX_PIN = 23\nRX_PIN = 22\n#模块有一个可用串口通道，2\ncom_index = 2\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n\n#模块放置位置\nmodIndex = 15\nwind_direction_sensor=None\n\n# --------------------------------------------------------------\n# 实验核心模块\n# --------------------------------------------------------------\nif __name__ == \"__main__\":\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    \n\n    try:\n        wind_direction_sensor = WindDirection(modIndex,com_index,TX_PIN,RX_PIN)\n        sleep_time = 1\n        windDirection_sensor_target_value = 0\n        windDirection_sensor_maximum_value = 0\n        \n        run_sensor(wind_direction_sensor, sleep_time, windDirection_sensor_target_value, windDirection_sensor_maximum_value)\n\n    except KeyboardInterrupt:\n        print(\"\n用户中断程序\")\n    except ValueError:\n        print(\"设备断开连接\")\n        \n    finally:\n        wind_direction_sensor.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId":11,
+    "Functiondescription": "每隔 1s 打印输出一次当前环境的分贝值",
+    "SamplefileName": "NoiseSensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nmodIndex = 11\n\nif __name__ == \"__main__\":\n    SLEEP_TIME = 1  # 采集间隔时间（秒）\n    NOISE_TARGET_VALUE = 50  # 噪声目标值（分贝）\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    # 定义继电器模块，模块编号位5\n    controller = NoiseSensor(modIndex,com_index)\n\n    try:\n        print(\"程序正在运行......\")\n        print(\"请观察操作台上执行模块的状态变化\")\n        while True:\n            # --------------------------------------------------------------\n            # 参数设置区\n            # 用户可以根据自己的实验需求调整以下参数。\n            # 请用户在了解每个参数含义后，根据实验需要进行合理设置。\n            # --------------------------------------------------------------\n            #01 02 00 00 00 00 78 0A\n            readbuffer = (ctypes.c_ubyte * 8)()\n            buffer = (ctypes.c_ubyte * 8)()\n            buffer[0] = 0x01\n            buffer[1] = 0x02\n            buffer[2] = 0x00\n            buffer[3] = 0x00\n            buffer[4] = 0x00\n            buffer[5] = 0x00\n            buffer[6] = 0x78\n            buffer[7] = 0x0A\n            ret = controller.WriteReadHexData(8,readbuffer,8,buffer,1)\n\n            if ret > 0:\n                decibel = readbuffer[3]\n                sensor_values = {\"noise_decibel\": decibel}\n                target_values = {\"NoiseSensor\": NOISE_TARGET_VALUE}\n               frequencies = f\"{SLEEP_TIME} s/次\"\n                _save_data(sensor_values, frequencies,target_values)\n                \n            else:\n                print(\"读分贝值失败\")\n            \n            time.sleep(SLEEP_TIME)\n    \n    except KeyboardInterrupt:\n        # 如果出现键盘中断（Ctrl+C），执行清理工作\n        print(\"Ctrl+C detected. Cleaning up RS232 and exiting...\")  # 打印提示消息\n        controller.uninit();\n        modules.modDisconnect(5)\n        modules.uninit()\n        exit(0)  # 退出程序\n    finally:\n        # 确保在退出时清理 GPIO 口，以防止程序异常退出\n        controller.uninit();\n        modules.modDisconnect(5)\n        modules.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId": 17,
+    "Functiondescription": "每隔 2s 在终端打印输出一次当前环境的PM2.5/PM10/TSP浓度值",
+    "SamplefileName": "AirQualitySensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\nTX_PIN = 22\nRX_PIN = 23\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nmodIndex = 15\n#读超时时间,单位秒\nREAD_TIMER_OUT = 5\n_airsensor=None\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    SLEEP_TIME = 1  # 采集间隔时间（秒）\n    \n   # PM2.5 参数设置\n    PM25_TARGET_VALUE = 0    # PM2.5 目标值\n    \n    # PM10 参数设置\n    PM10_TARGET_VALUE = 0    # PM10 目标值\n    \n    # TSP 参数设置\n    TSP_TARGET_VALUE = 0     # TSP 目标值\n    \n    \n    \n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n   try:\n        sensor_init()\n        run_sensor(SLEEP_TIME, PM25_TARGET_VALUE, PM10_TARGET_VALUE, TSP_TARGET_VALUE)\n    except KeyboardInterrupt:\n        print(\"用户中断程序\")\n    finally:\n        sensor_cleanup()",
+    "": null
+  },
+  {
+    "TrainTaskId": 14,
+    "Functiondescription": "在终端播放一次mp3语音文件",
+    "SamplefileName": "Player_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"Mp3Player\"\n\n#模块位置\nmodIndex = 14\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n# UDP 通信配置\nUDP_DEST_ADDR = ('127.0.0.1', 8088)\nUDP_MAX_PACKET_SIZE = 1000\n_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)\n_global_packet_id = 0\n\n_player=None\n\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    PLAYER_INTERVAL = 10  # 显示切换间隔（秒）\n    \n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    try:\n        run_player(modules,PLAYER_INTERVAL)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{PLAYER_INTERVAL} s/次\"\n        target_values = {\"Player_Status\": \"-\"}\n        sensor_values = {\"Player_Status\": \"关闭\", \"Display_Content\": \"无\"} \n       _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        modules.modDisconnect(modIndex)\n        modules.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId": 13,
+    "Functiondescription": "显示倾角传感器的温度后，以当前姿态设为初始姿态，2s后每隔1s读取一次三个轴相对于初始姿态的角度",
+    "SamplefileName": "TiltSensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# --------------------------------------------------------------\n# 参数设置区\n# 用户可以根据自己的实验需求调整以下参数。\n# --------------------------------------------------------------\nSLEEP_TIME = 1                    # 读取频率（秒）\nANGLE_Y_TARGET_VALUE = 50         # Y轴目标值\nANGLE_Y_MAXIMUM_VALUE = 90        # Y轴最大值\n\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nmodIndex = 13\n#读超时时间,单位秒\nREAD_TIMER_OUT = 5\n_tilesensor=None\n\n# 传感器名称常量\nSENSOR_NAME = \"TileSensor\"\n# --------------------------------------------------------------\n# 主程序入口\n# --------------------------------------------------------------\nif __name__ == \"__main__\":\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    \n    _tilesensor = TiltSensor(modIndex)\n    # 运行传感器读取\n    try:\n\n      run_sensor(_tilesensor)\n    except KeyboardInterrupt:\n        print(\"程序已停止\")\n    \n    finally:\n        _tilesensor.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 18,
+    "Functiondescription": "输出当前的压力值信息",
+    "SamplefileName": "PressureSensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nmodIndex = 15\n\nADC_CHNL = 0\nBIT_WIDTH = 3\n\n# --------------------------------------------------------------\n# 主程序入口\n# --------------------------------------------------------------\nif __name__ == \"__main__\":\n\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    # 初始化传感器\n    sensor = Pressure(modIndex,ADC_CHNL,BIT_WIDTH)\n    \n    try:\n        \n        # 运行传感器读取\n        run_sensor(sensor)\n        \n    except KeyboardInterrupt:\n        print(\"程序已停止\")\n    finally:\n        sensor.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 19,
+    "Functiondescription": "每隔2s读取一次当前距离",
+    "SamplefileName": "Ultrasound_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"UltrasoundSensor\"\n\n#模块地址\nmodIndex = 15\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\nTX_PIN = 23\nRX_PIN = 22\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    SLEEP_TIME = 1           # 采样间隔（秒）\n    LASER_TARGET_VALUE = 50  # 目标值\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    try:\n        run_sensor(modules,SLEEP_TIME, LASER_TARGET_VALUE)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{SLEEP_TIME} s/次\"\n        target_values = {\"distance_mm\": LASER_TARGET_VALUE}\n        sensor_values = {\"distance_mm\": 0}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        sensor_cleanup()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 8,
+    "Functiondescription": "每隔1S打印一次当前光栅状态，没有遮挡物的时候显示\"Normal\"，有物体遮挡的时候显示\"Exceeding\"并且指示灯亮红灯",
+    "SamplefileName": "InfraredGratingSensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------    \n# 传感器名称常量\nSENSOR_NAME = \"InfraredGratingSensor\"\n\nmodIndex = 8  # 模块地址\nmodStatus = 0   #模块状态\nir_pin = 5  #gpio引脚\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    SLEEP_TIME = 0.1  # 采集间隔时间（秒），红外传感器响应快，可以高频采集\n     # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n\n    sensor = INIOController(modIndex,ir_pin)\n\n    try:\n        run_sensor(sensor,SLEEP_TIME)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{SLEEP_TIME} s/次\"\n        target_values = {\"Grating_Status\": \"-\"}\n        sensor_values = {\"Grating_Status\": \"未知\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        modules.modDisconnect(modIndex)\n        modules.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 10,
+    "Functiondescription": "持续检测环境光的强度，并在终端上打印输出，能够观察到输出的光照度值随环境光线明暗的变化",
+    "SamplefileName": "LightSensor_OPT3001_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n#模块地址\nmodIndex = 10\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\nSCL_PIN = 22\nSDA_PIN = 23\n#BH1750_ADDR_LO 是 0x23，BH1750_ADDR_HI 是 0x5C（取决于模块ADDR引脚电平）\nBH170_ADDR_LOW = 0x23 \nBH170_MASTER_FREQ_HZ = 100000  # I2C速率\n\n# 低光照阈值（传感器底噪过滤，低于此值视为0 lux）\nLOW_LIGHT_THRESHOLD: float = 10.0\n\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    SLEEP_TIME = 1  # 采集间隔时间（秒）\n    LIGHT_TARGET_VALUE = 50  # 光照目标值\n    \n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n\n    if modStatus==0:\n        #如果传感器不在线，再查询传感器是否在线\n        if modules.isModReady(modIndex)==1:\n            #如果模块在线，则连接模块\n             ret = modules.modConnect(modIndex)\n             if ret == 1:\n                #连接成功\n                modStatus = 1\n                #重新初始化模块\n                sensor_cleanup()\n        else:\n            # 初始化失败，发送状态0，程序退出\n            \n            print(\"设备未连接，程序退出\")\n            exit(1)      \n    if not sensor_init():\n        print(\"传感器初始化失败，程序退出\")\n        exit(1)\n    \n    # 启动时先发送一次数据\n    lux = sensor_read()\n    sensor_values = {\"light_lux\": round(lux, 2)}\n    target_values = {\"LightSensor\": LIGHT_TARGET_VALUE}\n    frequencies = f\"{SLEEP_TIME} s/次\"\n    _save_data(sensor_values, frequencies, target_values)\n    \n    try:\n        print(\"程序正在运行...\")\n        print(\"请观察光照传感器的数据变化\")\n        print(\"-\" * 30)\n        \n        while True:\n            lux = sensor_read()\n            \n            print(f\"光照强度: {lux:.2f} lux\")\n            \n            sensor_values = {\"light_lux\": round(lux, 2)}\n            target_values = {\"LightSensor\": LIGHT_TARGET_VALUE}\n            frequencies = f\"{SLEEP_TIME} s/次\"\n            \n            _save_data(sensor_values, frequencies, target_values)\n            \n            time.sleep(SLEEP_TIME)\n    \n    except KeyboardInterrupt:\n        print(\"\n程序已停止\")\n    \n    finally:\n        sensor_cleanup()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 12,
+    "Functiondescription": "烟雾传感器未检测到烟雾的时候返回Normal，检测到烟雾的时候返回Exceeding",
+    "SamplefileName": "SmokeSensor_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"SmokeSensor\"\n\nmodIndex = 12  # 模块地址\nmodStatus = 0   #模块状态\nsmoke_pin = 5  #gpio引脚\n\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n        SLEEP_TIME = 0.1  # 采集间隔时间（秒），红外传感器响应快，可以高频采集\n     # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n\n    sensor = INIOController(modIndex,smoke_pin)\n\n    try:\n        run_sensor(sensor,SLEEP_TIME)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{SLEEP_TIME} s/次\"\n        target_values = {\"SmokeSensor_Status\": \"-\"}\n        sensor_values = {\"SmokeSensor_Status\": \"未知\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        modules.modDisconnect(modIndex)\n        modules.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 1,
+    "Functiondescription": "以 2s 的时间间隔轮流显示红色，绿色，蓝色",
+    "SamplefileName": "LED_RGB_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"LED_RGB\"\n\n# LED 引脚定义（BOARD 模式）\nPIN_LED_R = 23  #  - 红色\nPIN_LED_G = 25  #  - 绿色\nPIN_LED_B = 22  #  - 蓝色\nmodIndex = 1  # 模块地址\n#模块状态\nmodStatus = 0\nLED_PINS = [PIN_LED_R, PIN_LED_G, PIN_LED_B]\n\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == \"__main__\":\n    SLEEP_TIME = 2  # LED 切换间隔（秒）\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    try:\n        run_led(SLEEP_TIME)\n\n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{SLEEP_TIME} s/次\"\n        target_values = {\"LED_Color\": \"-\"}\n        sensor_values = {\"LED_Color\": \"未知\", \"LED_Status\": \"关闭\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)  # 等待UDP发送完成\n        print(\"程序已停止\")\n\n    finally:\n        led_cleanup()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 6,
+    "Functiondescription": "在一个无限循环中，交替显示文本和图像。每次显示两秒后更换",
+    "SamplefileName": "OLED_demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"OLED\"\n\nSCL_PIN = 22\nSDA_PIN = 23\n#模块位置\nmodIndex = 6\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    DISPLAY_INTERVAL = 2  # 显示切换间隔（秒）\n    \n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    \n    #初始化温湿度模块\n    sensor = SSD1306Lcd(modIndex,SCL_PIN,SDA_PIN)\n\n    try:\n        run_oled(modules,sensor,DISPLAY_INTERVAL)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{DISPLAY_INTERVAL} s/次\"\n        target_values = {\"OLED_Status\": \"-\"}\n        sensor_values = {\"OLED_Status\": \"关闭\", \"Display_Content\": \"无\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        sensor.uninit()\n        modules.modDisconnect(modIndex)\n        modules.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId": 2,
+    "Functiondescription": "上电后，有源蜂鸣器响2S，静音2S，循环交替",
+    "SamplefileName": "ActiveBuzzer_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"ActiveBuzzer\"\n\n# 蜂鸣器引脚定义（BOARD 模式）\nPIN_BUZZER = 12  # J41_BOARD_PIN35\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    BEEP_DURATION = 0.2   # 蜂鸣持续时间（秒）\n    BEEP_INTERVAL = 0.1   # 蜂鸣间隔时间（秒）\n    LOOP_DELAY = 5        # 循环间隔时间（秒）\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    \n    try:\n        run_buzzer(BEEP_DURATION, BEEP_INTERVAL, LOOP_DELAY)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{LOOP_DELAY} s/次\"\n        target_values = {\"Buzzer_Status\": \"-\"}\n        sensor_values = {\"Buzzer_Status\": \"关闭\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)  # 等待UDP发送完成\n        print(\"程序已停止\")\n    \n    finally:\n        buzzer_cleanup()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 7,
+    "Functiondescription": "将当前播放音量设为10以后播放下一首音乐",
+    "SamplefileName": "VoiceBroadcast_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"VoiceBroadcast\"\n\nTX_PIN = 22\nRX_PIN = 23\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\n\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nmodIndex = 7\nif __name__ == \"__main__\":\n    SLEEP_TIME = 5  # 采集间隔时间（秒）\n    VOLUME = 4  # 声音大小\n    text = \"欢迎使用AIOT物联演示箱\"\n    text_gbk = bytes(text, 'gbk')\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n\n    # 定义继电器模块，模块编号位5\n    controller = VoiceSensor(modIndex,com_index,TX_PIN,RX_PIN)\n\n    try:\n       run_voice(controller,VOLUME, SLEEP_TIME,text_gbk)\n    \n    except KeyboardInterrupt:\n        # 如果出现键盘中断（Ctrl+C），执行清理工作\n        print(\"Ctrl+C detected. Cleaning up RS232 and exiting...\")  # 打印提示消息\n        controller.uninit();\n        modules.modDisconnect(5)\n        modules.uninit()\n        exit(0)  # 退出程序\n    finally:\n        # 确保在退出时清理 GPIO 口，以防止程序异常退出\n        controller.uninit();\n        modules.modDisconnect(5)\n        modules.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 3,
+    "Functiondescription": "以 2s 的时间间隔开关继电器",
+    "SamplefileName": "1WayRelayModule_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"RelayModule\"\n#继电器状态\nrelay_state = 0\n#模块状态\nmodStatus = 0\n#模块地址\nmodIndex = 3\n_controller=None\n#继电器的引脚\nRELAY_CONTROLLER_PIN = 25\n\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    ON_DURATION = 1       # 继电器开启持续时间（秒）\n    LOOP_DELAY = 2        # 循环间隔时间（秒）\n    \n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    try:\n        run_relay(ON_DURATION, LOOP_DELAY)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{LOOP_DELAY} s/次\"\n        target_values = {\"Relay_Status\": \"-\"}\n        sensor_values = {\"Relay_Status\": \"关闭\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        modules.modDisconnect(modIndex)\n        modules.uninit()",
+    "": null
+  },
+  {
+    "TrainTaskId": 5,
+    "Functiondescription": "风扇顺时针旋转10后停止转动",
+    "SamplefileName": "MotorModule_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\nmodIndex = 5\n\n# 传感器名称常量\nSENSOR_NAME = \"MotorModule\"\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    MOTOR_ON_TIME = 10   # 电机运行时间（秒）\n    LOOP_DELAY = 2       # 循环间隔时间（秒）\n    # 注册信号处理器\n    signal.signal(signal.SIGTERM, graceful_shutdown)\n    # 也可以捕获 SIGINT (Ctrl+C)，让行为一致\n    signal.signal(signal.SIGINT, graceful_shutdown)\n   # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    \n    controller = MotorController(modIndex)\n    \n    try:\n        run_motor(controller,MOTOR_ON_TIME, LOOP_DELAY)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        motor_off(controller)\n        frequency = f\"{LOOP_DELAY} s/次\"\n        target_values = {\"Motor_Status\": \"-\"}\n        sensor_values = {\"Motor_Status\": \"关闭\"}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        motor_off(controller)\n        controller.Stop(0)\n        controller.Stop(1)\n        modules.modDisconnect(modIndex)\n        modules.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 4,
+    "Functiondescription": "1秒钟测量一次距离",
+    "SamplefileName": "VL53L0X_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"LaserSensor\"\n\n#模块地址\nmodIndex = 4\n\n#模块状态，0：不在线，1：在线\nmodStatus = 0\nSCL_PIN = 22\nSDA_PIN = 23\nVL53L0X_MASTER_FREQ_HZ = 400000  # I2C速率\n\n# --------------------------------------------------------------\n# 参数设置区\n# --------------------------------------------------------------\nif __name__ == '__main__':\n    \n    SLEEP_TIME = 1           # 采样间隔（秒）\n    LASER_TARGET_VALUE = 50  # 目标值\n    print(\"Lazer Read start\")\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接继电器模块\n    ret = modules.modConnect(modIndex)\n\n    if ret<=0:\n        modStatus=0\n    else:\n        modStatus=1\n    try:\n        run_sensor(modules,SLEEP_TIME, LASER_TARGET_VALUE)\n    \n    except KeyboardInterrupt:\n        # 用户打断程序，发送状态0\n        print(\"用户中断程序\")\n        frequency = f\"{SLEEP_TIME} s/次\"\n        target_values = {\"distance_mm\": LASER_TARGET_VALUE}\n        sensor_values = {\"distance_mm\": 0}\n        _save_data(sensor_values, frequency, target_values, 0, 0, 0)\n        time.sleep(1.5)\n        print(\"程序已停止\")\n    \n    finally:\n        sensor_cleanup()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 32,
+    "Functiondescription": "5秒钟通过zigbee发送模块发送字符串\"hello\",zigbee接收模块接收到字符串\"hello\"，之后通过语音模块播放\"无线模块组网完成\"",
+    "SamplefileName": "VL53L0X_Demo1.py",
+    "SamplefileCode": "# --------------------------------------------------------------\n# 实验核心模块，包括参数设置和实验过程监控。\n# --------------------------------------------------------------\n# 传感器名称常量\nSENSOR_NAME = \"ZigbeeBroadcast\"\n\nTX_PIN = 22\nRX_PIN = 23\nRST_PIN = 25\n#模块状态，0：不在线，1：在线\nsendModStatus = 0\nrecvModStatus = 0\n\n#模块有一个可用串口通道，2\ncom_index = 2\n#模块放置位置\nsendModIndex = 14\nrecvModIndex = 15\nsendMod = None\nrecvMod = None\n\n# 异步接收队列\n_recv_queue = Queue(maxsize=3)\n_recv_thread = None\n_recv_running = False\n\n#tts模块串口引脚\nTTS_TX_PIN = 22\nTTS_RX_PIN = 23\n\n#tts模块状态，0：不在线，1：在线\nttsModStatus = 0\n\n#模块有一个可用串口通道，2\ntts_com_index = 2\n#模块放置位置\ntts_modIndex = 7\n#tts模块\n_ttsMod = None\nsendText = \"hello\r\n\"\n\nif __name__ == \"__main__\":\n    SLEEP_TIME = 5  # 发送间隔时间（秒）\n    \n    text_gbk = bytes(sendText, 'gbk')\n\n    # 模块初始化\n    modules = SensorModule()\n    # 开始搜索模块\n    modules.startScanSensors()\n    # 连接发送模块\n    ret = modules.modConnect(sendModIndex)\n\n    if ret<=0:\n        sendModStatus=0\n    else:\n        sendModStatus=1\n\n    # 连接接收模块\n    ret = modules.modConnect(recvModIndex)\n\n    if ret<=0:\n        recvModStatus=0\n    else:\n        recvModStatus=1\n\n    # 连接TTS语音模块\n    ret = modules.modConnect(tts_modIndex)\n\n    if ret<=0:\n        ttsModStatus=0\n    else:\n        ttsModStatus=1\n\n    sendMod = ZigbeeSensor(sendModIndex,com_index,TX_PIN,RX_PIN,RST_PIN)\n    recvMod = ZigbeeSensor(recvModIndex,com_index,TX_PIN,RX_PIN,RST_PIN)\n    _ttsMod = VoiceSensor(tts_modIndex,tts_com_index,TTS_TX_PIN,TTS_RX_PIN)\n    try:\n       run_zigbee_send(SLEEP_TIME,text_gbk)\n    \n    except KeyboardInterrupt:\n        # 如果出现键盘中断（Ctrl+C），执行清理工作\n        print(\"Ctrl+C detected. Cleaning up RS232 and exiting...\")  # 打印提示消息\n        sendMod.uninit();\n        modules.modDisconnect(sendModIndex)\n        modules.uninit()\n        exit(0)  # 退出程序\n    finally:\n        # 确保在退出时清理 GPIO 口，以防止程序异常退出\n        sendMod.uninit();\n        modules.modDisconnect(sendModIndex)\n        modules.uninit()\n",
+    "": null
+  },
+  {
+    "TrainTaskId": 20,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 21,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 22,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 23,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 24,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 25,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 26,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 27,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 28,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 29,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  },
+  {
+    "TrainTaskId": 30,
+    "Functiondescription": "",
+    "SamplefileName": "",
+    "SamplefileCode": "",
+    "": null
+  }
+]
