@@ -1,0 +1,10 @@
+{
+  "default_user_visible": true,
+  "rules": [
+    {
+      "prefix": "F",
+      "user_visible": false
+    }
+  ],
+  "versions": {}
+}
