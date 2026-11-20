@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "product": "publish-switcher",
+  "version": "2026.11.20.2",
+  "url": "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/publish-switcher.zip",
+  "package_file": "publish-switcher.zip",
+  "size": 32020787,
+  "sha256": "0619a200759172849bd24c8ffcfd0f94278c05891127a0f6ecfdbe6d7f9b6547",
+  "notes": "用户模式、工程师面板和程序自动更新。"
+}
