@@ -346,7 +346,7 @@
     "TaskTypeId": 3,
     "ImagePath": "Assets/TaskIcon/icon_aqm.png",
     "PythonExePath": "/usr/bin/python3",
-    "PythonScriptPath": "hat20.py",
+    "PythonScriptPath": "Hat_standard.py",
     "OutputResults": "已佩戴人数|未佩戴人数",
     "ResultsFilePath": "app/hat/hat.png",
     "ScriptFloderPath": "app/hat",
