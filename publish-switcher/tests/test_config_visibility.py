@@ -92,3 +92,22 @@ class VisibilityTests(unittest.TestCase):
         self.assertTrue(resolve_version(validate_policy(policy), "F公开版本")["user_visible"])
         with self.assertRaisesRegex(SyncError, "发生变化"):
             save_policy(engine, policy, snapshot)
+
+    def test_builtin_dot_and_uppercase_f_hide_without_policy_but_allow_overrides(self):
+        for name in (".内部", "F测试", "f小写", "教学"):
+            raw = write_bundle(self.target, name)
+            if name == ".内部":
+                for active, payload in raw.items():
+                    (self.target / active).write_bytes(payload)
+        engine = Engine(self.target)
+        self.assertEqual({v["version"] for v in engine.list_config_versions(user_only=True)}, {"f小写", "教学"})
+        self.assertEqual(len(engine.list_config_versions()), 4)
+        self.assertEqual(engine.task_config_status(user_only=True), "配置版本：实施配置")
+        for name in (".内部", "F测试"):
+            with self.assertRaisesRegex(SyncError, "未对用户开放"):
+                engine.activate_config_version(name, user_only=True)
+        self.policy(rules=[{"prefix": ".", "user_visible": True}],
+                    versions={"F测试": {"user_visible": True, "display_name": "开放版"}})
+        self.assertEqual(len(engine.list_config_versions(user_only=True)), 4)
+        self.policy(rules=[], default_user_visible=False, versions={"F测试": {"user_visible": True}})
+        self.assertEqual([v["version"] for v in engine.list_config_versions(user_only=True)], ["F测试"])

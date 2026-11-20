@@ -8,6 +8,7 @@ from pathlib import Path
 from core import Engine, Source, SyncError, atomic_json, load_profile, read_json, sync_blockers, validate_catalog
 from diagnostics import default_log_path, settings_path, setup_logging
 from repository import DEFAULT_PROFILES, DEFAULT_REPOSITORY, directory_manifest, remote_profiles, validate_presets, repository_from_settings
+from repository_sources import candidates as repository_candidates, discover as discover_repositories
 from file_compare import diagnose_file, format_report, comparison_self_test
 from config_versions import CONFIG_NAMES, format_comparison
 from assets_sync import AssetsEngine, format_preview as assets_report
@@ -34,7 +35,8 @@ def parser():
     p = argparse.ArgumentParser(description="publish 工具：按格式同步文件、切换整套配置、运行 IoT Demo、诊断差异和查看日志。")
     p.add_argument("--version", action="version", version="Publish Switcher " + VERSION)
     p.add_argument("--target", help="publish 目录，默认读取已保存设置")
-    p.add_argument("--repo", help="Gitee/GitHub 仓库，默认 https://gitee.com/potper/odoiotassets")
+    p.add_argument("--repo", help="首选 HTTPS 项目地址：Gitee/GitHub/GitLab/极狐；显式指定时不使用已保存的候补")
+    p.add_argument("--fallback-repo", action="append", default=[], help="候补仓库，可重复指定，按顺序查询")
     p.add_argument("--branch", help="分支，留空使用仓库默认分支")
     p.add_argument("--log-file", help="日志文件，默认 ~/.config/publish-switcher/logs/switcher.log")
     p.add_argument("--local-catalog", help="本地资源仓库的 catalog.json")
@@ -130,10 +132,16 @@ def profiles(args, config, engine=None):
         path = Path(args.local_catalog).expanduser().resolve()
         catalog = validate_catalog(read_json(path))
         return [{"source": Source(local=path.parent), "profile": p} for p in catalog["profiles"]]
-    source = Source.remote(args.repo or repository_from_settings(config),
-                           args.branch if args.branch is not None else config.get("branch", ""))
     presets = validate_presets(config.get("directory_profiles", DEFAULT_PROFILES))
-    return remote_profiles(source, presets)
+    explicit = not getattr(args, "use_repository_sources", args.repo is None)
+    values = repository_candidates(config, args.repo, args.branch, explicit=explicit, extra=getattr(args, "fallback_repo", []))
+    if not explicit and getattr(args, "fallback_repo", []):
+        values += repository_candidates(config, args.repo, args.branch, explicit=True, extra=args.fallback_repo)[1:]
+    import logging
+    interactive = getattr(args, "command", None) == "cli"
+    return discover_repositories(values, presets, log=logging.getLogger("publish-switcher").info,
+                                 profile=None if interactive else getattr(args, "profile", None),
+                                 version=None if interactive else getattr(args, "version", None))
 
 
 def selected(args, items):

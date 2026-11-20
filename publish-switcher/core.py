@@ -28,6 +28,18 @@ class SyncError(Exception):
     pass
 
 
+class AccessDenied(urllib.error.HTTPError):
+    """Keep HTTP status handling while exposing the refused endpoint to users."""
+    def __str__(self):
+        parsed = urllib.parse.urlsplit(self.url)
+        address = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+        if parsed.hostname == "gitee.com" and parsed.path.startswith("/api/"):
+            return ("Gitee API 拒绝访问（HTTP 403）：" + address +
+                    "。无法获取对应仓库数据，可能涉及平台访问策略或接口限额。"
+                    "请稍后重试，或在设置中选择可访问的仓库／使用已完整缓存的离线方案。")
+        return "服务器拒绝访问（HTTP 403）：" + address
+
+
 class Cancelled(SyncError):
     pass
 
@@ -310,30 +322,68 @@ class HTTPSOnly(urllib.request.HTTPRedirectHandler):
 
 
 class Source:
-    def __init__(self, local=None, owner=None, repo=None, commit=None, provider="github"):
-        if provider not in ("github", "gitee"):
+    def __init__(self, local=None, owner=None, repo=None, commit=None, provider="github", base_url=None):
+        if provider not in ("github", "gitee", "gitlab"):
             raise SyncError("不支持的资源托管平台。")
         self.local = Path(local).resolve() if local else None
         self.owner, self.repo, self.commit = owner, repo, commit
         self.provider = provider
+        self.base_url = base_url or "https://gitlab.com"
+        if provider == "gitlab":
+            parsed = urllib.parse.urlsplit(self.base_url)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+                raise SyncError("GitLab 服务地址必须是无账号、无路径的 HTTPS 地址。")
+            self.base_url = self.base_url.rstrip("/")
 
     def descriptor(self):
-        return {"local": str(self.local) if self.local else None, "owner": self.owner,
+        result = {"local": str(self.local) if self.local else None, "owner": self.owner,
                 "repo": self.repo, "commit": self.commit, "provider": self.provider}
+        if self.provider == "gitlab":
+            result["base_url"] = self.base_url
+        return result
 
     @property
     def api_base(self):
+        if self.provider == "gitlab":
+            return self.base_url + "/api/v4/projects/" + urllib.parse.quote(self.owner + "/" + self.repo, safe="")
         host = "https://gitee.com/api/v5" if self.provider == "gitee" else "https://api.github.com"
         return f"{host}/repos/{self.owner}/{self.repo}"
 
     def tree_url(self):
+        if self.provider == "gitlab":
+            return self.api_base + "/repository/tree?" + urllib.parse.urlencode({"ref": self.commit, "recursive": "true", "per_page": 100})
         return self.api_base + f"/git/trees/{self.commit}?recursive=1"
+
+    def tree(self):
+        if self.provider == "gitlab":
+            from gitlab_download import tree
+            return tree(self, getattr(self, "cancel_event", None))
+        return json.loads(self.fetch_bytes(self.tree_url()))
 
     @staticmethod
     def remote(address, branch=""):
         if address.strip().startswith("https://gitee.com/"):
             return Source.gitee(address, branch)
-        return Source.github(address, branch)
+        if address.strip().startswith("https://github.com/"):
+            return Source.github(address, branch)
+        from gitlab_download import connect
+        return connect(address, branch)
+
+    @staticmethod
+    def head(url):
+        for attempt in range(1, NETWORK_ATTEMPTS + 1):
+            try:
+                request = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "publish-switcher/1.0"})
+                with urllib.request.build_opener(HTTPSOnly()).open(request, timeout=30) as response:
+                    return {key.lower(): value for key, value in response.headers.items()}
+            except Exception as exc:
+                if isinstance(exc, urllib.error.HTTPError) and exc.code == 403:
+                    refused = AccessDenied(exc.geturl(), exc.code, exc.msg, exc.headers, None)
+                    exc.close()
+                    raise refused from exc
+                if attempt == NETWORK_ATTEMPTS or not transient_network_error(exc):
+                    raise
+                retry_pause(exc, attempt, url, None)
 
     @staticmethod
     def gitee(address, branch=""):
@@ -398,6 +448,10 @@ class Source:
                     raise SyncError("配置或清单文件过大。")
                 return data
             except Exception as exc:
+                if isinstance(exc, urllib.error.HTTPError) and exc.code == 403:
+                    refused = AccessDenied(exc.geturl(), exc.code, exc.msg, exc.headers, None)
+                    exc.close()
+                    raise refused from exc
                 if attempt == NETWORK_ATTEMPTS or not transient_network_error(exc):
                     raise
                 retry_pause(exc, attempt, url, cancel)
@@ -413,6 +467,8 @@ class Source:
             return path
         if not self.commit or not re.fullmatch(r"[0-9a-f]{40}", self.commit):
             raise SyncError("远端来源必须固定到提交。")
+        if self.provider == "gitlab":
+            return self.api_base + "/repository/files/" + urllib.parse.quote(location, safe="") + "/raw?ref=" + self.commit + "&lfs=false"
         if self.provider == "gitee":
             return f"https://gitee.com/{self.owner}/{self.repo}/raw/{self.commit}/" + urllib.parse.quote(location, safe="/")
         return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.commit}/" + urllib.parse.quote(location, safe="/")
@@ -833,7 +889,7 @@ class Engine:
             raise
         return new
 
-    def apply(self, manifest, source, cancel=None, log=lambda msg: None, mode="strict", expected_actual=None, sync_permissions=False, _restore=False):
+    def apply(self, manifest, source, cancel=None, log=lambda msg: None, mode="strict", expected_actual=None, sync_permissions=False, _restore=False, on_commit=None):
         validate_manifest(manifest, allow_empty_entries=_restore)
         self.startup_recover()
         with self.lock():
@@ -946,6 +1002,8 @@ class Engine:
                 info = {"id": manifest["id"], "version": manifest["version"],
                         "name": manifest.get("name", manifest["id"]), "applied_at": time.time(), "scope": self.scope, "mode": mode,
                         "sync_permissions": bool(sync_permissions), "extensions": list(self.extensions)}
+                if on_commit:
+                    on_commit()
                 return self._commit(stage, info)
             finally:
                 if stage.exists() and not self.journal.exists():

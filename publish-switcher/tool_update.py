@@ -4,6 +4,7 @@ import ast
 from contextlib import contextmanager
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -13,12 +14,14 @@ import subprocess
 import sys
 import time
 import urllib.parse
+import urllib.error
 import uuid
 import zipfile
 
 DEFAULT_UPDATE_URL = "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/switcher-update.json"
 MAX_PACKAGE = 256 * 1024 * 1024
-REQUIRED_FILES = ("switcher.py", "app.py", "core.py", "version.py", "tool_update.py", "install.sh")
+REQUIRED_FILES = ("switcher.py", "app.py", "core.py", "version.py", "tool_update.py", "install.sh",
+                  "unified_update.py", "update_dialog.py")
 
 
 class UpdateError(RuntimeError):
@@ -133,15 +136,76 @@ def remote_file(url):
     parts = parsed.path.strip("/").split("/")
     if parsed.hostname == "gitee.com" and len(parts) >= 5 and parts[2] == "raw" and not parsed.query:
         owner, repo, _, ref = parts[:4]
-        source = (Source(owner=owner, repo=repo, commit=ref, provider="gitee") if re.fullmatch(r"[0-9a-f]{40}", ref)
-                  else Source.remote("https://gitee.com/{}/{}".format(owner, repo), urllib.parse.unquote(ref)))
+        try:
+            source = (Source(owner=owner, repo=repo, commit=ref, provider="gitee") if re.fullmatch(r"[0-9a-f]{40}", ref)
+                      else Source.remote("https://gitee.com/{}/{}".format(owner, repo), urllib.parse.unquote(ref)))
+        except urllib.error.HTTPError as exc:
+            if exc.code != 403:
+                raise
+            logging.getLogger("publish-switcher").warning(
+                "Gitee API 返回 403，程序更新改为直接访问配置的公开文件地址；不切换仓库：%s", url)
+            exc.close()
+            # Publisher metadata supplies version, size and SHA-256. The package
+            # must still pass all validation before replacing the installation.
+            return Source(), url
         return source, urllib.parse.unquote("/".join(parts[4:]))
     return Source(), url
 
 
-def check_release(url, install, current):
-    source, location = remote_file(url)
-    release = validate_release(json.loads(source.metadata(location).decode("utf-8-sig")))
+def mirror_locations(url, repositories=None):
+    """Map only recognized repository raw URLs; external publisher URLs stay exact."""
+    if not repositories:
+        return [url]
+    from repository_sources import normalize
+    values = normalize(repositories)
+    parsed = urllib.parse.urlsplit(https_url(url))
+    parts = parsed.path.strip("/").split("/")
+    origin = None
+    if parsed.hostname == "gitee.com" and len(parts) >= 5 and parts[2] == "raw":
+        origin, ref, path = "https://gitee.com/" + "/".join(parts[:2]), parts[3], "/".join(parts[4:])
+    elif parsed.hostname == "raw.githubusercontent.com" and len(parts) >= 4:
+        origin, ref, path = "https://github.com/" + "/".join(parts[:2]), parts[2], "/".join(parts[3:])
+    elif "-" in parts:
+        marker = parts.index("-")
+        if marker >= 2 and parts[marker + 1:marker + 2] == ["raw"] and len(parts) > marker + 3:
+            origin = parsed.scheme + "://" + parsed.netloc + "/" + "/".join(parts[:marker])
+            ref, path = parts[marker + 2], "/".join(parts[marker + 3:])
+    if origin is None or (url != DEFAULT_UPDATE_URL and origin not in {item["url"] for item in values}):
+        return [url]
+    results = []
+    for item in values:
+        base = item["url"]
+        branch = urllib.parse.quote(item["branch"], safe="") if item["branch"] else ref
+        if base.startswith("https://gitee.com/"):
+            address = base + "/raw/" + branch + "/" + path
+        elif base.startswith("https://github.com/"):
+            address = base.replace("https://github.com/", "https://raw.githubusercontent.com/", 1) + "/" + branch + "/" + path
+        else:
+            address = base + "/-/raw/" + branch + "/" + path
+        results.append(address)
+    return results
+
+
+def check_release(url, install, current, repositories=None):
+    failures = []
+    for address in mirror_locations(url, repositories):
+        try:
+            logging.getLogger("publish-switcher").info("查询程序更新地址：%s", address)
+            source, location = remote_file(address)
+            release = validate_release(json.loads(source.metadata(location).decode("utf-8-sig")))
+            release = remember_release(release, install, current)
+            if repositories:
+                release[0]["mirror_repositories"] = repositories
+            return release
+        except Exception as exc:
+            if not repositories:
+                raise
+            failures.append(address + "：" + str(exc))
+            logging.getLogger("publish-switcher").warning("程序更新地址不可用：%s；%s", address, exc)
+    raise UpdateError("程序更新地址均不可用：\n" + "\n".join(failures))
+
+
+def remember_release(release, install, current):
     state = update_state(install)
     required = state / "required.json"
     if required.exists() and version_number(release["version"]) < version_number(read_json(required)["version"]):
@@ -235,8 +299,21 @@ def prepare_package(install, release, package, current):
 def prepare_online(install, release, current, cancel, progress):
     state = update_state(install)
     package = state / "download.zip"
-    source, location = remote_file(release["url"])
-    source.download(location, package, release["size"], release["sha256"], cancel, progress)
+    failures = []
+    addresses = mirror_locations(release["url"], release.get("mirror_repositories"))
+    for address in addresses:
+        try:
+            source, location = remote_file(address)
+            source.download(location, package, release["size"], release["sha256"], cancel, progress)
+            break
+        except Exception as exc:
+            from core import Cancelled
+            if isinstance(exc, Cancelled) or not release.get("mirror_repositories"):
+                raise
+            failures.append(address + "：" + str(exc))
+            logging.getLogger("publish-switcher").warning("程序包地址不可用：%s；%s", address, exc)
+    else:
+        raise UpdateError("程序包下载地址均不可用：\n" + "\n".join(failures))
     return prepare_package(install, release, package, current)
 
 
@@ -329,10 +406,26 @@ def helper_main():
         if args.launch:
             recover_update(install)
         else:
+            error = None
             try:
                 commit_update(install)
             except Exception as exc:
+                error = str(exc)
                 print(str(exc), file=sys.stderr, flush=True)
+            # The publish deployment is independent and remains committed on tool failure.
+            summary = update_state(install) / "combined-update.json"
+            if summary.exists():
+                try:
+                    result = read_json(summary)
+                    if result.get("phase") == "restarting":
+                        result.update(program="更新失败，已恢复旧版" if error else "更新成功",
+                                      success=not bool(error), restart=False,
+                                      phase="failed" if error else "complete")
+                        if error:
+                            result["error"] = error
+                        save_json(summary, result)
+                except (OSError, ValueError, TypeError):
+                    print("无法保存组合更新结果，请查看 last-update.json 和 helper.log。", file=sys.stderr, flush=True)
     command = [sys.executable, str(install / "switcher.py"), "gui"]
     if args.engineer:
         command.append("--engineer")

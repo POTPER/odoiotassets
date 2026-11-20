@@ -58,7 +58,7 @@ def remote_profiles(source, presets):
         if exc.code != 404:
             raise
     validate_presets(presets)
-    tree = json.loads(source.fetch_bytes(source.tree_url()))
+    tree = source.tree()
     if tree.get("truncated"):
         raise SyncError("远端目录列表被截断，禁止对不完整列表执行同步。请改用 catalog 清单。")
     nodes = tree.get("tree")

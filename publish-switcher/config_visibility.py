@@ -35,7 +35,7 @@ def validate_policy(value):
 
 
 def resolve_version(policy, name):
-    visible = policy["default_user_visible"]
+    visible = False if name.startswith((".", "F")) else policy["default_user_visible"]
     for rule in policy["rules"]:
         if name.startswith(rule["prefix"]):
             visible = rule["user_visible"]

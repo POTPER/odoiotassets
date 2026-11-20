@@ -17,6 +17,7 @@ from core import (Cancelled, Engine, Source, SyncError, atomic_json, load_profil
                   read_json, sync_blockers, validate_catalog)
 from repository import (DEFAULT_PROFILES, DEFAULT_REPOSITORY, directory_manifest,
                         remote_profiles, validate_presets, repository_from_settings, REPOSITORY_DEFAULT_VERSION)
+from repository_sources import candidates as repository_candidates, discover as discover_repositories
 from file_compare import diagnose_file, format_report, comparison_self_test, visible_diff_line, format_diff
 from config_versions import format_comparison
 from assets_sync import AssetsEngine, format_preview as assets_report, format_details as assets_details
@@ -28,6 +29,7 @@ from switcher_icon import WM_CLASS, load_icons
 from file_formats import DEFAULT_EXTENSIONS, normalize_extensions, inventory, describe as describe_formats, label
 from version import VERSION
 import tool_update
+import unified_update
 
 
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "publish-switcher" / "settings.json"
@@ -42,6 +44,8 @@ class Application:
         self.program_checked = not updates
         self.program_release = None
         self.program_checking = False
+        self.quick_dialog = None
+        self.quick_committing = threading.Event()
         self.install_directory = Path(__file__).resolve().parent
         self.logger = logging.getLogger("publish-switcher")
         if not self.logger.handlers:
@@ -95,6 +99,7 @@ class Application:
         self.sync_permissions = tk.BooleanVar(value=config.get("sync_permissions") is True)
         self.update_mode.set(config.get("update_mode") if config.get("update_mode") in ("incremental", "strict") else "incremental")
         self.program_source = tk.StringVar(value=config.get("program_update_url", tool_update.DEFAULT_UPDATE_URL))
+        self.quick_profile = tk.StringVar(value=config.get("quick_update_profile", "rk"))
         self.program_status = tk.StringVar(value="启动时将检查 Switcher 版本。")
         self.program_notes = tk.StringVar(value="")
         self.program_version_text = tk.StringVar(value="当前版本 " + VERSION)
@@ -104,9 +109,17 @@ class Application:
             self.file_extensions = DEFAULT_EXTENSIONS
         self.format_inventory = config.get("format_inventory", {})
         self.format_text = tk.StringVar(value="同步格式…（{} 种）".format(len(self.file_extensions)))
-        self.target = tk.StringVar(value=config.get("target", ""))
+        default_target = next((path for path in unified_update.DEFAULT_TARGETS if Path(path).is_dir()), "")
+        self.target = tk.StringVar(value=config.get("target", "") or default_target)
         self.repo = tk.StringVar(value=repository_from_settings(config))
         self.branch = tk.StringVar(value=config.get("branch", ""))
+        try:
+            self.repository_sources = repository_candidates(config)
+        except SyncError as exc:
+            self.logger.warning("多仓库设置无效，暂用首选仓库：%s", exc)
+            self.repository_sources = repository_candidates(config, explicit=True)
+        self.repo.set(self.repository_sources[0]["url"])
+        self.branch.set(self.repository_sources[0]["branch"])
         try:
             self.presets = validate_presets(config.get("directory_profiles", json.loads(json.dumps(DEFAULT_PROFILES))))
         except SyncError:
@@ -182,6 +195,9 @@ class Application:
         self.heading_label.grid(row=0, column=0, sticky="w")
         self.phase_badge = StatusBadge(header, self.font_family)
         self.phase_badge.grid(row=0, column=1, sticky="e")
+        self.quick_update_button = ttk.Button(header, text="更新", style="Primary.TButton", command=self.start_quick_update)
+        if self.updates_enabled:
+            self.quick_update_button.grid(row=0, column=2, padx=(12, 0))
         self.caption_label = ttk.Label(header, textvariable=self.page_caption, style="Muted.TLabel")
         self.caption_label.grid(row=1, column=0, columnspan=2, sticky="w", pady=(2, 0))
         location = ttk.Frame(self.workspace, padding=(20, 0, 20, 10))
@@ -282,7 +298,7 @@ class Application:
             return
         allowed = {str(self.program_page)}
         if self.engineer_mode or self.program_checked:
-            allowed.update(str(page) for page in (self.update_page, self.config_page, self.demo_page))
+            allowed.update(str(page) for page in (self.config_page, self.demo_page))
         if self.engineer_mode:
             allowed.update(self.nav_buttons)
         for key, button in self.nav_buttons.items():
@@ -708,18 +724,19 @@ class Application:
     def build_program_page(self):
         page = self.program_page
         page.columnconfigure(0, weight=1)
-        ttk.Label(page, text="Switcher 程序更新", style="Title.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 10))
+        ttk.Label(page, text="程序更新", style="Title.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 10))
         ttk.Label(page, textvariable=self.program_version_text).grid(row=1, column=0, sticky="w", pady=4)
         ttk.Label(page, textvariable=self.program_status, wraplength=650).grid(row=2, column=0, sticky="w", pady=8)
         actions = ttk.Frame(page)
         actions.grid(row=3, column=0, sticky="w", pady=8)
-        self.program_check_button = ttk.Button(actions, text="检查更新 / 重试", command=self.check_program_update)
+        self.program_check_button = ttk.Button(actions, text="更新 Switcher 与 publish", command=self.start_quick_update)
         self.program_check_button.pack(side="left")
         self.program_apply_button = ttk.Button(actions, text="更新并重启", style="Primary.TButton",
                                                 command=self.apply_program_update, state="disabled")
         self.program_apply_button.pack(side="left", padx=8)
         self.program_offline_button = ttk.Button(actions, text="导入离线更新", command=self.import_program_update)
         self.program_offline_button.pack(side="left")
+        self.engineer_widgets.extend([self.program_apply_button, self.program_offline_button])
         ttk.Label(page, textvariable=self.program_notes, wraplength=650, style="Muted.TLabel",
                   justify="left").grid(row=4, column=0, sticky="nw", pady=12)
 
@@ -747,22 +764,99 @@ class Application:
             self.program_check_id = None
         if self.program_checking or self.busy:
             return
+        try:
+            repositories = self.repository_list()
+        except SyncError as exc:
+            self.program_checked = False
+            self.program_release = None
+            self.program_status.set("仓库列表无效，请在工程师设置中修改。")
+            self.program_notes.set(str(exc))
+            self.update_ready()
+            return
         self.program_checking = True
         self.program_status.set("正在检查 Switcher 版本…")
         address = self.program_source.get().strip()
         def worker():
             try:
-                value = tool_update.check_release(address, self.install_directory, VERSION)
-                self.events.put(("program_check", (address, value, None)))
+                value = tool_update.check_release(address, self.install_directory, VERSION, repositories=repositories)
+                self.events.put(("program_check", (address, value, None, repositories)))
             except Exception as exc:
                 self.logger.exception("Switcher 程序版本检查失败")
-                self.events.put(("program_check", (address, None, str(exc))))
+                self.events.put(("program_check", (address, None, str(exc), repositories)))
         threading.Thread(target=worker, daemon=True).start()
         self.update_ready()
 
+    def start_quick_update(self):
+        if self.busy or self.program_checking:
+            return
+        from update_dialog import UpdateDialog
+        if not self.quick_dialog or not self.quick_dialog.exists():
+            self.quick_dialog = UpdateDialog(self)
+        self.quick_dialog.begin()
+        self.quick_committing.clear()
+        try:
+            values = dict(install=self.install_directory, current=VERSION, target=self.target.get().strip(),
+                          repositories=self.repository_list(), presets=json.loads(json.dumps(self.presets)),
+                          extensions=list(self.file_extensions), release_url=self.program_source.get().strip(),
+                          profile_id=self.quick_profile.get().strip(), sync_permissions=self.sync_permissions.get(),
+                          cancel=self.cancel, settings_path=CONFIG)
+        except Exception as exc:
+            result = dict(success=False, publish="未更新", program="未更新", error=str(exc))
+            self.quick_dialog.update(dict(message=str(exc), cancellable=False))
+            self.quick_dialog.finish(result)
+            return
+
+        def event(value):
+            if not value.get("cancellable", True):
+                self.quick_committing.set()
+            self.events.put(("quick_progress", value))
+
+        self.run(lambda: unified_update.run_update(event=event, **values), self.quick_update_finished,
+                 cancellable=False, system_update=True)
+
+    def quick_update_finished(self, result):
+        self.last_error = not result["success"]
+        self.quick_dialog.finish(result)
+        self.status.set("更新完成。" if result["success"] else "更新未完成：" + result.get("error", "请查看日志"))
+        if result.get("target"):
+            self.target.set(result["target"])
+        self.checked = None
+        self.config_preview = None
+        self.invalidate_assets()
+        if "program_update_required" in result:
+            self.program_checked = not result["program_update_required"]
+            self.configure_access()
+        if result.get("restart"):
+            try:
+                unified_update.start_restart(self.install_directory, result, self.engineer_mode)
+            except Exception as exc:
+                self.logger.exception("一键更新助手启动失败")
+                self.quick_dialog.update(dict(message=str(exc), cancellable=False))
+                self.quick_dialog.finish(result)
+            else:
+                self.root.after_idle(self.root.destroy)
+                return
+        if result["success"]:
+            self.program_checked = True
+            self.program_release = None
+            self.program_status.set("Switcher 与 publish 均已检查完成。")
+            self.configure_access()
+            # Save/read cache and refresh config/Demo through the existing connection path.
+            self.root.after_idle(lambda: self.connect(updated=True))
+
     def program_check_finished(self, data):
-        address, value, error = data
+        address, value, error = data[:3]
         self.program_checking = False
+        if len(data) > 3:
+            try:
+                changed = data[3] != self.repository_list()
+            except SyncError:
+                changed = True
+            if changed:
+                self.program_checked = False
+                self.program_release = None
+                self.check_program_update()
+                return
         if address != self.program_source.get().strip():
             self.check_program_update()
             return
@@ -777,9 +871,12 @@ class Application:
             self.program_notes.set(release["notes"])
             if newer:
                 self.program_version_text.set("当前 {}    最新 {}".format(VERSION, release["version"]))
-                self.program_status.set("发现新版本。请更新并重启后使用。")
+                self.program_status.set("发现新版本。点击“更新”自动完成 Switcher 与 RK publish 更新。")
             else:
                 self.program_status.set("已确认当前版本，可以使用。")
+        previous_error = unified_update.last_helper_error(self.install_directory)
+        if previous_error:
+            self.program_notes.set(previous_error + "\n\n" + self.program_notes.get())
         self.configure_access()
         self.update_ready()
         if self.program_checked:
@@ -841,7 +938,7 @@ class Application:
 
     def build_settings_page(self):
         page = self.settings_page
-        ttk.Label(page, text="先填写设备上的 publish 目录，保存后到“更新文件”刷新方案。",
+        ttk.Label(page, text="设置完成后，用户点击“更新”即可自动更新；下方为工程师维护设置。",
                   wraplength=800).pack(anchor="w", pady=(0, 12))
         settings = ttk.LabelFrame(page, text="连接设置", padding=12)
         settings.pack(fill="x")
@@ -852,8 +949,15 @@ class Application:
             entry.grid(row=row, column=1, sticky="ew", padx=10)
             self.controls.append(entry)
         self.button(settings, "浏览目录", self.browse, row=0, column=2)
-        ttk.Label(settings, text="支持 Gitee / GitHub；分支留空使用仓库默认分支。",
+        self.button(settings, "多仓库顺序 / 检测…", self.edit_repositories).grid(row=1, column=2, padx=4)
+        ttk.Label(settings, text="支持 Gitee / GitHub / GitLab / 极狐；按设置顺序查询，分支可分别指定。",
                   wraplength=700).grid(row=3, column=1, sticky="w", padx=10, pady=6)
+        ttk.Label(settings, text="一键更新方案 ID").grid(row=4, column=0, sticky="w", pady=6)
+        quick_profile = ttk.Entry(settings, textvariable=self.quick_profile, width=16)
+        quick_profile.grid(row=4, column=1, sticky="w", padx=10)
+        self.controls.append(quick_profile)
+        ttk.Label(settings, text="默认 rk；一键更新固定严格模式，沿用已选格式与权限设置。",
+                  wraplength=700).grid(row=5, column=1, sticky="w", padx=10)
         actions = ttk.Frame(page)
         actions.pack(fill="x", pady=12)
         self.button(actions, "保存设置 / 读取缓存", self.connect).pack(side="left")
@@ -965,6 +1069,13 @@ class Application:
                 elif kind == "program_check":
                     self.program_check_finished(data)
                     continue
+                elif kind == "quick_progress":
+                    if self.quick_dialog and self.quick_dialog.exists():
+                        self.quick_dialog.update(data)
+                    if "received" not in data:
+                        self.append(data["message"])
+                        self.status.set(data["message"])
+                    continue
                 elif kind == "demo_progress":
                     self.demo_progress_event(data)
                 elif kind == "demo_state":
@@ -988,6 +1099,7 @@ class Application:
                     self.cancel_button.configure(text="取消准备")
                     self.progress.stop()
                     if kind in ("error", "demo_preflight_error"):
+                        was_quick = self.quick_dialog and self.quick_dialog.exists() and self.quick_dialog.running
                         self.last_error = True
                         self.checked = None
                         self.config_preview = None
@@ -996,12 +1108,15 @@ class Application:
                         self.status.set(data)
                         self.append("操作未完成：" + data)
                         self.set_log_visible(True)
+                        if was_quick:
+                            self.quick_dialog.update(dict(message=data, cancellable=False))
+                            self.quick_dialog.finish(dict(success=False, publish="请查看日志确认", program="未完成", error=data))
                         if was_demo:
                             self.demo_needs_refresh = kind == "demo_preflight_error"
                             self.finish_demo_cards("failed", error=data)
                             self.demo_status.set("Demo 未能完成：" + data)
                             self.append_demo("Demo 未能完成：" + data)
-                        if not self.closing:
+                        if not self.closing and not was_quick:
                             messagebox.showerror("操作未完成", data)
                     else:
                         callback, value = data
@@ -1039,11 +1154,13 @@ class Application:
             return False
         return True
 
-    def connect(self):
+    def connect(self, updated=False):
         target, repo, branch = self.target.get().strip(), self.repo.get().strip(), self.branch.get().strip()
         sync_permissions = self.sync_permissions.get()
         update_mode = self.update_mode.get()
         presets = json.loads(json.dumps(self.presets))
+        quick_profile = self.quick_profile.get().strip()
+        repositories = self.repository_list()
         if not target:
             messagebox.showinfo("选择目录", "请先选择 publish 目录。")
             return
@@ -1054,6 +1171,8 @@ class Application:
             recovered = engine.startup_recover()
             data = read_json(CONFIG) if CONFIG.exists() else {}
             data.update({"target": str(engine.target), "repo": repo, "branch": branch, "directory_profiles": presets,
+                                 "repository_sources": repositories,
+                                 "quick_update_profile": quick_profile,
                                  "update_mode": update_mode,
                                  "repository_default_version": REPOSITORY_DEFAULT_VERSION, "sync_permissions": sync_permissions,
                                  "file_extensions": list(self.file_extensions), "format_inventory": self.format_inventory})
@@ -1061,9 +1180,12 @@ class Application:
             return engine, engine.profiles(), recovered
         def done(result):
             self.engine, profiles, recovered = result
+            self.repository_sources = repositories
             self.profiles = [{"manifest": p["manifest"], "source": Source(**p["source"])} for p in profiles]
             self.add_placeholders()
             self.show_profiles()
+            if updated and self.updates_enabled and not self.engineer_mode:
+                self.pages.select(self.config_page)
             self.update_current()
             self.status.set("已保存设置；" + ("已处理未完成事务。" if recovered else "可以刷新远端方案或导入本地 catalog。"))
         self.run(work, done)
@@ -1169,7 +1291,7 @@ class Application:
     def page_changed(self, event):
         if self.updates_enabled:
             if not self.engineer_mode and (not self.program_checked or self.pages.select() in
-                    (str(self.assets_page), str(self.tools_page), str(self.settings_page))):
+                    (str(self.update_page), str(self.assets_page), str(self.tools_page), str(self.settings_page))):
                 self.configure_access()
                 return
         self.sync_navigation()
@@ -1789,15 +1911,25 @@ class Application:
         if not repo:
             messagebox.showinfo("仓库未填写", "可以先导入本地 catalog；创建仓库后再填写地址。")
             return
+        repositories = self.repository_list()
         def work():
-            source = Source.remote(repo, branch)
-            return remote_profiles(source, self.presets)
+            return discover_repositories(repositories, self.presets, self.log, self.cancel)
         def done(items):
             cached = [p for p in self.profiles if "manifest" in p]
             self.profiles = items + cached
             self.show_profiles()
-            self.status.set("远端方案已更新，新增 publish_* 目录会自动出现；尚未修改 publish。")
+            source = items[0]["source"]
+            name = (source.owner + "/" + source.repo) if source.owner and source.repo else str(source.local)
+            self.status.set("已选中可用仓库：{} / {}；尚未修改 publish。".format(name, (source.commit or "本地")[:12]))
         self.run(work, done)
+
+    def repository_list(self):
+        return repository_candidates({"repository_sources": self.repository_sources}, self.repo.get().strip(), self.branch.get().strip())
+
+    def edit_repositories(self):
+        if not self.busy:
+            from repository_sources_ui import show_editor
+            show_editor(self, CONFIG)
 
     def import_local(self):
         if not self.ensure_engine():
@@ -2086,6 +2218,7 @@ class Application:
             self.assets_details_button.configure(state="normal" if ready and self.assets_tree.selection() else "disabled")
             self.assets_combo.configure(state="readonly" if not self.busy else "disabled")
         if self.updates_enabled:
+            self.quick_update_button.configure(state="normal" if not self.program_checking and not self.busy else "disabled")
             self.program_check_button.configure(state="normal" if not self.program_checking and not self.busy else "disabled")
             self.program_apply_button.configure(state="normal" if self.program_release and not self.program_checking and not self.busy else "disabled")
             self.program_offline_button.configure(state="normal" if not self.program_checking and not self.busy else "disabled")
@@ -2255,6 +2388,9 @@ class Application:
             self.run(lambda: self.engine.restore(self.log), self.applied)
 
     def close(self):
+        if self.quick_dialog and self.quick_dialog.exists() and self.quick_dialog.running:
+            self.quick_dialog.close()
+            return
         if self.busy:
             prompt = ("IoT Demo 正在运行。停止本次任务并在进程退出后关闭？" if self.demo_running else
                       "正在操作。取消准备并在操作安全结束后关闭？目录切换阶段将等待完成。"

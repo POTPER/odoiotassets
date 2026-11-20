@@ -17,6 +17,7 @@ from file_formats import normalize_extensions, inventory, describe, label
 class TerminalMenu:
     def __init__(self, args, config, logger, logfile):
         self.args, self.config = copy.copy(args), dict(config)
+        self.args.use_repository_sources = args.repo is None
         self.logger, self.logfile = logger, logfile
         self.args.target = args.target or config.get("target", "")
         self.args.repo = args.repo or repository_from_settings(config)
@@ -220,8 +221,8 @@ class TerminalMenu:
 
     def settings(self):
         while True:
-            print("\n设置：1.publish 目录  2.仓库地址  3.分支  4.权限策略  5.来源模式  6.保存设置  0.返回")
-            choice = self.choose("选择：", 6)
+            print("\n设置：1.publish 目录  2.首选仓库  3.首选分支  4.权限策略  5.来源模式  6.保存设置  7.多仓库顺序  0.返回")
+            choice = self.choose("选择：", 7)
             if choice is None:
                 return
             if choice == 0:
@@ -233,7 +234,7 @@ class TerminalMenu:
                     self.args.target = str(path.absolute())
                     self.invalidate(source=True)
             elif choice == 1:
-                self.args.repo = input("Gitee/GitHub 地址（留空用默认 Gitee）：").strip() or DEFAULT_REPOSITORY
+                self.args.repo = input("Gitee/GitHub/GitLab/极狐完整项目地址（留空用默认 Gitee）：").strip() or DEFAULT_REPOSITORY
                 self.invalidate(source=True)
             elif choice == 2:
                 self.args.branch = input("分支（留空使用仓库默认分支）：").strip()
@@ -253,8 +254,26 @@ class TerminalMenu:
                         raise SyncError("本地 catalog.json 不存在。")
                     self.args.offline, self.args.local_catalog = mode == 1, catalog
                     self.invalidate(source=True)
-            else:
+            elif choice == 5:
                 self.save_settings()
+            else:
+                from repository_sources import candidates, normalize
+                values = candidates(self.config, self.args.repo, self.args.branch)
+                print("当前顺序：\n" + "\n".join("{}. {} | {}".format(i + 1, v["url"], v["branch"] or "默认") for i, v in enumerate(values)))
+                print("输入新列表，每行：完整项目 URL | 分支（可省略）。空行结束；首行留空取消。之后用 6 保存设置。")
+                entered = []
+                while True:
+                    line = input("仓库：").strip()
+                    if not line:
+                        break
+                    parts = line.split("|", 1)
+                    entered.append({"url": parts[0].strip(), "branch": parts[1].strip() if len(parts) > 1 else ""})
+                if entered:
+                    entered = normalize(entered)
+                    self.config["repository_sources"] = entered
+                    self.args.repo, self.args.branch = entered[0]["url"], entered[0]["branch"]
+                    self.args.use_repository_sources = True
+                    self.invalidate(source=True)
             print("当前目录：{}；权限：{}。".format(self.args.target or "未设置", "严格同步仓库" if self.sync_permissions else "保留本地"))
 
     def logs(self):

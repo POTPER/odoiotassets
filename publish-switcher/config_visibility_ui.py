@@ -25,7 +25,7 @@ def show_visibility_editor(parent, engine, saved):
     pages.add(versions_page, text="目录单独设置")
     default = tk.BooleanVar(value=policy["default_user_visible"])
     ttk.Checkbutton(rules_page, text="未命中任何规则时，对用户可见", variable=default).pack(anchor="w")
-    ttk.Label(rules_page, text="目录单独设置优先，其次按以下规则从上到下匹配，最后使用默认规则。\n前缀区分大小写。F 可以标记 F内部测试、F赛事调试等目录。",
+    ttk.Label(rules_page, text="优先级：目录单独设置 → 以下首条匹配规则 → 内置 . / F 隐藏 → 默认可见性。\n前缀区分大小写；可添加“用户可见”规则或单独开放目录，覆盖内置隐藏规则。",
               wraplength=650).pack(anchor="w", pady=8)
     rule_tree = ttk.Treeview(rules_page, columns=("prefix", "visible"), show="headings", height=7)
     rule_tree.heading("prefix", text="目录名前缀")

@@ -40,7 +40,7 @@ def build(root, output, url):
     release = validate_release({"schema_version": 1, "product": "publish-switcher", "version": VERSION,
                                 "url": https_url(url), "package_file": archive.name, "size": archive.stat().st_size,
                                 "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
-                                "notes": "用户模式、工程师面板和程序自动更新。"})
+                                "notes": "小窗一键更新 Switcher 与 RK publish，自动检查并严格同步已选格式；用户配置列表默认隐藏 . / F 前缀，可由 JSON 明确开放。"})
     manifest.write_text(json.dumps(release, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return archive, manifest
 

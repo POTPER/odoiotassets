@@ -79,6 +79,8 @@ class GuiTests(unittest.TestCase):
                 ui.program_check_finished((ui.program_source.get(), (release, False), None))
                 self.assertEqual(ui.pages.tab(ui.config_page, "state"), "normal")
                 self.assertEqual(ui.pages.tab(ui.settings_page, "state"), "hidden")
+                self.assertEqual(ui.pages.tab(ui.update_page, "state"), "hidden")
+                self.assertEqual(ui.quick_update_button.winfo_manager(), "grid")
                 self.assertEqual(ui.location_bar.winfo_manager(), "")
                 self.assertEqual(ui.diff_tree.cget("displaycolumns"), ("status", "path"))
                 ui.toggle_engineer()
@@ -106,6 +108,72 @@ class GuiTests(unittest.TestCase):
                 self.assertEqual(ui.pages.select(), str(ui.program_page))
                 self.assertEqual(ui.pages.tab(ui.tools_page, "state"), "hidden")
             window.destroy()
+
+    def test_quick_update_runs_without_selection_and_refreshes_filtered_configs(self):
+        from generate import generate
+        from core import read_json, load_profile
+        from test_config_versions import write_bundle
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
+            base = Path(directory)
+            source, target, repo = base / "source", base / "publish", base / "repo"
+            source.mkdir()
+            target.mkdir()
+            write_bundle(source, "教学")
+            write_bundle(source, ".内部")
+            write_bundle(source, "F工程师")
+            (source / "new.py").write_bytes(b"print('new')\n")
+            generate(source, repo, "rk", "RK", "1")
+            origin = Source(local=repo)
+            manifest = load_profile(origin, read_json(repo / "catalog.json")["profiles"][0])
+            window = tk.Toplevel(self.root)
+            window.withdraw()
+            with patch.object(app, "CONFIG", base / "settings.json"), \
+                    patch("unified_update.discover", return_value=[{"source": origin, "manifest": manifest}]), \
+                    patch("tool_update.check_release", return_value=({"version": app.VERSION, "notes": "same"}, False)), \
+                    patch("core.assert_stopped"), patch("app.messagebox.showerror") as error:
+                ui = app.Application(window, engineer=False, updates=True)
+                window.after_cancel(ui.program_check_id)
+                ui.program_check_id = None
+                ui.target.set(str(target))
+                ui.install_directory = base / "installed-tool"
+                ui.install_directory.mkdir()
+                ui.start_quick_update()
+                deadline = time.monotonic() + 8
+                while time.monotonic() < deadline:
+                    self.root.update()
+                    if not ui.busy and ui.engine and ui.config_tree.get_children() == ("教学",):
+                        break
+                    time.sleep(.01)
+                self.assertFalse(ui.busy)
+                self.assertTrue((target / "new.py").exists(), ui.quick_dialog.summary.get())
+                self.assertEqual(ui.pages.select(), str(ui.config_page))
+                self.assertEqual(ui.config_tree.get_children(), ("教学",))
+                self.assertFalse(ui.quick_dialog.running)
+                self.assertEqual(ui.quick_dialog.message.get(), "更新完成")
+                self.assertIn("更新成功", ui.quick_dialog.summary.get())
+                self.assertEqual(str(ui.quick_update_button.cget("state")), "normal")
+                error.assert_not_called()
+                ui.quick_dialog.close()
+            window.destroy()
+
+    def test_quick_dialog_failure_retry_and_commit_cannot_cancel(self):
+        from update_dialog import UpdateDialog
+        dialog = UpdateDialog(self.ui)
+        self.ui.quick_dialog = dialog
+        dialog.begin()
+        self.ui.quick_committing.set()
+        dialog.update(dict(message="正在切换", cancellable=False))
+        self.ui.close()
+        self.assertTrue(dialog.exists())
+        self.assertFalse(self.ui.cancel.is_set())
+        self.assertEqual(str(dialog.action.cget("state")), "disabled")
+        dialog.finish(dict(success=False, publish="更新成功", program="更新失败", error="完整错误\n" * 100))
+        self.assertEqual(dialog.retry.winfo_manager(), "pack")
+        self.assertIn("publish：更新成功", dialog.summary.get())
+        dialog.toggle_log()
+        self.assertEqual(dialog.log.winfo_manager(), "pack")
+        self.assertIn("完整日志", dialog.log.get("1.0", "end"))
+        dialog.close()
 
     def test_program_new_version_and_check_failure_keep_user_operations_blocked(self):
         window = tk.Toplevel(self.root)
