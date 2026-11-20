@@ -1,6 +1,0 @@
-# Prefer board-vendor-compatible NumPy/OpenCV already installed on RK3588.
-numpy>=1.21
-opencv-python>=4.5
-# Optional: only needed when reading YAML model metadata.
-PyYAML>=6.0
-# Install rknn-toolkit-lite2 separately using the matching official ARM64 wheel.
