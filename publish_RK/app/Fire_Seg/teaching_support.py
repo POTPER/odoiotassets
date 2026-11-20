@@ -253,10 +253,11 @@ class TeachingSession:
     BUZZER_CLASS = BuzzerLink
 
     def __init__(self, metadata, config, entry_path, rule, commands, output_root=None, driver_factory=None):
-        for name in ('CONFIRM_TIME','RESULT_TIMEOUT','RESET_TIME','BEEP_DURATION','BEEP_REPEAT_INTERVAL'):
+        for name in ('RESULT_TIMEOUT','RESET_TIME','BEEP_DURATION','BEEP_REPEAT_INTERVAL'):
             if not math.isfinite(config[name]) or config[name] <= 0:
                 raise ValueError('{} 必须为有限正数。'.format(name))
-        for name in ('SCAN_WAIT','BEEP_INTERVAL'):
+        # 零确认时间表示首帧立即触发，其他设备超时仍必须为正数。
+        for name in ('CONFIRM_TIME','SCAN_WAIT','BEEP_INTERVAL'):
             if not math.isfinite(config[name]) or config[name] < 0:
                 raise ValueError('{} 必须为有限非负数。'.format(name))
         if type(config['BEEP_COUNT']) is not int or config['BEEP_COUNT'] <= 0:

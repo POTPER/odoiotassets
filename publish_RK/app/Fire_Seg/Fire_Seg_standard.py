@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# ==================== 工程场景：地下综合管廊电力舱火情监测 ====================
+# 某市地下综合管廊已投入运行，运维中心在电力舱设置固定视频监测点，
+# 从左到右覆盖电缆接头区、配电设备区和检修通道区，开展火情识别与蜂鸣器联动调试。
+# 电缆接头区用于观察接头周边火焰，配电设备区用于观察设备附近火焰，
+# 检修通道区用于观察人员巡检通行范围内的火焰。正常运行期间三个区域均不应出现明火。
+# 任意一个区域或多个区域识别到火焰时，立即请求警报音；本帧没有达到门槛的火焰时请求静音。
+# 本场景按区域记录火情，不设动火审批或授权倒计时。
+# 三个区域的范围框和底部中文名称背景依次为蓝色、青色、绿色；火焰识别框使用红色。
+# 置信度达到50%才显示并参与联动，低分仅在内部匹配；首帧即提交结果，不额外等待。
+# CSV固定记录三个监测区域的识别与警报情况，并保存本次运行入口源码。
+# 运行：python3 standard.py；只检查环境：python3 standard.py --check。
 # ==================== 01 程序依赖 ====================
 # 标准库负责参数读取、计时、日志、退出信号、路径与队列访问。
 import argparse
@@ -13,101 +24,47 @@ from pathlib import Path
 from queue import Empty
 from dataclasses import replace
 import math
+import csv
+import shutil
+from datetime import datetime
+from functools import lru_cache
+from queue import Queue
+from threading import Event, Lock, Thread
 
 # 配套模块负责实验归档、声音请求与中文区域绘制；导入时不打开硬件。
-from zone_teaching_support import ZoneCommands, ZoneSession, ZoneOverlay, PermitWindow, validate_display
+from zone_teaching_support import ZoneCommands, ZoneBuzzer, ZoneOverlay, SOUND_NAMES
+from teaching_support import ExperimentLog, TeachingSession, find_desktop, safe_name
 
-# ==================== 02 用户设置 ====================
-
-# ==================== 考试任务：施工现场分区动火预警 ====================
-# 某房屋建筑工程正处于主体结构施工阶段。项目部将本次工作定名为“分区动火预警调试”，
-# 选取“施工现场监控点01”开展模拟测试，验证不同施工区域的火焰识别、动火授权时效及蜂鸣器联动功能。
-#
-# 该监控点覆盖钢筋加工区、临时作业区和材料堆放区，三个区域分别位于同一监控画面的左侧、中部和右侧。
-# 钢筋加工区本次安排焊接作业，已办理相应动火审批；临时作业区未安排动火作业；
-# 材料堆放区存放木模板、保温材料等可燃物，禁止动火。
-#
-# 为便于现场辨识，三个区域的范围框及名称背景应分别设置为：
-# 钢筋加工区使用纯绿色，临时作业区使用纯黄色，材料堆放区使用纯红色。
-#
-# 项目部要求根据作业区域和动火授权状态，实现以下预警功能：
-# 1. 钢筋加工区：授权有效期间识别到作业火焰时，蜂鸣器保持静音；
-#    授权失效后识别到火焰时，发出“提示音1”。
-# 2. 临时作业区：识别到火焰时，蜂鸣器发出“提示音2”。
-# 3. 材料堆放区：识别到火焰时，蜂鸣器发出“警报音”，其他区域的动火审批不得免除该区警报。
-#
-# 现由你使用实训箱及相关配件完成模拟调试。应分别验证材料区、临时作业区，
-# 以及钢筋区授权有效和授权失效两个时段的识别与报警表现，完成四项成果记录，
-# 并提交程序源码及CSV数据记录文件。
-
-# ====================================================
-# 请阅读顶部任务背景，在本分区调整区域配色及联动判断，并验证运行效果。
-# !!!!!!!!!!!!!!!!!!!! 检查项：请查找 TODO 1 和 TODO 2 !!!!!!!!!!!!!!!!!!!!
-# TODO 1：按任务要求设置三个区域的范围框及底部区域名称背景颜色。
-# TODO 2：检查并调整示例判断，补全三个区域及钢筋区授权前后的处理，并逐项验证。
-# 当前示例可以运行；请依据任务要求检查并完善区域配色和联动判断。
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# 以下为示例信息，请填写个人信息，并依据顶部任务背景修改项目和位置。
-experiment_info = {
-    "考试编号": "考号",
-    "项目名称": "实验",
-    "监测点位": "实训区",
+# ==================== 02 项目信息与区域联动 ====================
+runtime_info = {
+    "设备编号": "GL-FIRE-01",
+    "项目名称": "电力舱火情监测调试",
+    "监测点位": "管廊监控点01",
 }
 
-# >>>>>>>>>>>>>>>>>>>> TODO 1：区域配色设置区 >>>>>>>>>>>>>>>>>>>>
-# 按顶部任务要求设置三个区域的范围框及底部名称背景颜色；火焰检测框配色不在此处修改。
-# 使用BGR（蓝、绿、红）顺序，每个数值为0至255的整数；标签文字由系统自动选择深浅。
-# 以下默认沿用原来的蓝色，需学生按任务要求修改，保存并重启后生效。
-COLOR_REBAR_AREA = (255, 128, 0)          # 左侧：钢筋加工区
-COLOR_TEMPORARY_WORK_AREA = (255, 128, 0) # 中间：临时作业区
-COLOR_MATERIAL_AREA = (255, 128, 0)       # 右侧：材料堆放区
-# <<<<<<<<<<<<<<<<<<<< TODO 1：设置区结束 <<<<<<<<<<<<<<<<<<<<<<
+# BGR顺序为蓝、绿、红；范围框与区域名称背景使用相同颜色。
+COLOR_CABLE_JOINT_AREA = (255, 128, 0)       # 左侧：电缆接头区，蓝色
+COLOR_POWER_EQUIPMENT_AREA = (255, 255, 0)  # 中间：配电设备区，青色
+COLOR_MAINTENANCE_PASSAGE_AREA = (0, 180, 0) # 右侧：检修通道区，绿色
 
 
-
-# >>>>>>>>>>>>>>>>>>>> TODO 2：功能检查区 >>>>>>>>>>>>>>>>>>>>
-# 编写位置：在下方control_buzzer(...)函数内编写联动判断。
-# 下方仅提供待完善的基础示例，并非完整答案。
-# 请依据题目核对已有判断条件和声音接口，按需修改并补全缺少的处理，不能只追加分支而忽略现有示例。
-
-# 推荐使用语法：
-# 使用 Python 的 if / elif / else 编写条件判断。
-# and：逻辑与，表示“并且”；连接的两个条件都为 True 时，整体条件才为 True。
-# not：逻辑非，对布尔值取反；not True 为 False，not False 为 True。
-# 写法示例：条件1 and 条件2，表示两个条件必须同时满足。
-
-# 可调用变量：
-# material_fire_count：右侧材料堆放区的火焰数量，整数；大于0表示该区有火焰。
-# rebar_fire_count：左侧钢筋加工区的火焰数量，整数；大于0表示该区有火焰。
-# temporary_work_fire_count：中间临时作业区的火焰数量，整数；大于0表示该区有火焰。
-# permit_valid：系统提供的钢筋区限时授权状态，布尔值。
-# True 表示授权有效，False 表示授权已到期；Python 布尔值首字母大写。
-# 首帧推理成功后开始计时，默认授权60秒；未满60秒为 True，达到60秒时自动切换为 False，之后不自动续期。
-
-# 可调用接口：
-# buzzer.alarm()：请求警报音。
-# buzzer.notice()：请求提示音1。
-# buzzer.notice2()：请求提示音2。
-# buzzer.reset()：请求静音、停止后续循环；正在执行的一组按原流程结束。
-
-def control_buzzer(material_fire_count, rebar_fire_count, temporary_work_fire_count, permit_valid):
-    # >>>>>>>>>>>>>>>>>>>> TODO 2：功能检查区 >>>>>>>>>>>>>>>>>>>>
-    # 请依据任务背景调整或补全下方代码，覆盖三个区域及钢筋区授权前后的响应。
-    if material_fire_count > 1:
-        buzzer.notice()
+def control_buzzer(cable_joint_fire_count, power_equipment_fire_count, maintenance_passage_fire_count):
+    # 系统传入本帧三个监测区域的高置信度火焰数量。
+    # or表示任意一个条件成立即可；多个区域同时有火时也只提交一次警报请求。
+    if cable_joint_fire_count > 0 or power_equipment_fire_count > 0 or maintenance_passage_fire_count > 0:
+        buzzer.alarm()
     else:
         buzzer.reset()
-    # <<<<<<<<<<<<<<<<<<<< TODO 2：修改区结束 <<<<<<<<<<<<<<<<<<<<<<
+
 
 # ==================== 03 系统配置 ====================
-# 以下为实训箱调试参数，本次任务通常无需修改。
+# 按现场实训设备调整采集、NPU、预览、通信和声音参数。
 # 请求分辨率不代表设备一定支持，以终端日志中的实际采集尺寸为准。
-# 钢筋区授权时长在本系统配置区调整；区域颜色见“02 用户设置”。
 
 # 路径与日志
 # 路径以本文件所在目录为基准，避免从其他目录启动时找不到模型或字体。
 ROOT = Path(__file__).resolve().parent
-LOG = logging.getLogger('fire_yolo26_v20')
+LOG = logging.getLogger('zonefire_standard')
 DEFAULT_MODEL = ROOT / 'model/fire_yolo26.rknn'
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 
@@ -116,37 +73,29 @@ IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 # 当前模型为fire、smoke两类，系统仅处理fire；不要通过删除标签来改变类别编号。
 MODEL_PATH = ROOT / 'model/fire_yolo26.rknn'
 
-# 钢筋区实际授权时长（便于完成测试，不作为区域配色考点）
-# 可改为有限正数，单位秒；留足授权期间展示火焰的时间，保存并重启生效。
-PERMIT_DURATION = 60
-
 # 摄像头与NPU推理
-# 高置信度火焰显示红色，低置信度实测续跟显示黄色；低分结果不触发声音，本帧漏检立即无框。
+# 达到高置信度阈值的火焰显示红色；低分仅用于内部续跟，不绘制、不计数、不触发声音或成果记录。
 CAMERA_INDEX = 41  # 摄像头设备编号
 NPU_CORE = 'auto'  # auto自动选择；也可选0、1、2、all
 FRAME_WIDTH, FRAME_HEIGHT = 1920, 1080  # 请求采集宽度、高度，像素；不支持时按原流程回退
-CONFIDENCE_HIGH = 0.5  # 新目标发现与报警统计的高置信度阈值
-CONFIDENCE_LOW = 0.25  # 已有火焰目标的实测续跟阈值，低分不触发报警
+CONFIDENCE_HIGH = 0.5  # 检测框显示、报警判断和成果记录共用的高置信度阈值
+CONFIDENCE_LOW = 0.25  # 已有火焰目标的内部匹配阈值，低分结果不显示
 
 # 区域范围与中文显示
-# 画面固定按宽度三等分；左侧钢筋加工区，中间临时作业区，右侧材料堆放区。
+# 画面按宽度三等分；左侧电缆接头区，中间配电设备区，右侧检修通道区。
 # 区域中文在各框底部居中显示，名称由左至右排列，字体使用包内指定文件。
-REGION_NAMES = ("钢筋加工区", "临时作业区", "材料堆放区")  # 左、中、右显示名称
+REGION_NAMES = ("电缆接头区", "配电设备区", "检修通道区")  # 左、中、右显示名称
 FONT_PATH = ROOT / 'Arial-Unicode.ttf'  # 中文字体，需与代码一起部署
 SHOW_REGIONS = True  # 显示三区范围框和底部名称
-SHOW_AUTH_STATUS = True  # 显示配置区域的当次授权状态
 SHOW_STATS = True  # 显示火焰数量、推理耗时和帧率
 REGION_LINE_WIDTH = 2  # 区域框线宽，像素
 REGION_FONT_SIZE = 28  # 区域名称最大字号
-REGION_TEXT_COLOR = (255, 255, 255)  # 授权状态文字颜色；底部名称自动选择深色或白色
 REGION_BOTTOM_MARGIN = 12  # 底部文字边距，预览画面像素
-REGION_STATUS_FONT_SIZE = 18  # 授权状态最大字号
-AUTH_STATUS_POSITION = (6, 40)  # 授权状态左上角位置，预览画面像素
 
 # 识别框、标签与回传画面
 # 检测框与标签背景共用颜色；标签显示当前帧实际置信度，文字按背景亮度自动选色。
 COLOR_FIRE_HIGH = (0, 0, 255)  # 高置信度火焰，红色
-COLOR_FIRE_LOW = (0, 210, 255)  # 低置信度实测续跟，黄色
+COLOR_FIRE_LOW = (0, 210, 255)  # 保留配套模块的低分颜色配置；当前不显示低分框
 BOX_LINE_WIDTH = 2  # 识别框线宽，像素
 LABEL_FONT_SCALE = 0.6  # 识别标签字体比例
 LABEL_LINE_WIDTH = 1  # 识别标签文字线宽，像素
@@ -166,7 +115,7 @@ JPEG_QUALITY = 60  # JPEG质量，1至100；越高数据量越大
 ENABLE_BUZZER = True  # False关闭设备联动，识别和软件核验继续运行
 BUZZER_MODULE_INDEX = 2  # 蜂鸣器模块编号
 BUZZER_REPEAT = True  # True循环提示，False单组提示
-DETECTION_CONFIRM_TIME = 0.3  # 响应条件持续成立的确认时间，秒
+DETECTION_CONFIRM_TIME = 0.0  # 0表示首帧立即提交成果和声音请求，不额外等待；后台执行写入和声音
 DETECTION_RESET_TIME = 1.0  # 单组模式下，条件持续不成立后的复位时间，秒
 BEEP_COUNT = 2  # 通用每组鸣叫次数
 BEEP_DURATION = 0.2  # 通用每声持续时间，秒
@@ -177,94 +126,236 @@ BUZZER_RESULT_TIMEOUT = 1.0  # 超过此时间无有效判断，不再启动下�
 SENSOR_LIB = ROOT / 'libSmartSensorDriver.so'  # 配套传感器驱动动态库
 RESULTS_DIR = None  # None按当前用户桌面归档；可改为实验专用目录
 
-# 本教学版固定不启用云台，避免与蜂鸣器共用驱动生命周期。
+# 本标准版不启用云台，避免与蜂鸣器共用驱动生命周期。
 
 
 # ==================== 04 运行状态与配置校验 ====================
-# 以下对象由系统维护，保存中文图层缓存并收集声音请求，无需在实训中修改。
+
+class StandardOverlay(ZoneOverlay):
+    """Generic three-zone display; reuses only the compatible font measurement helper."""
+    def __init__(self, font_path, display):
+        self.font_path=Path(font_path).resolve()
+        self.config=dict(display)
+        names=self.config['REGION_NAMES']
+        if not isinstance(names,(tuple,list)) or len(names)!=3 or len(set(names))!=3 or any(not isinstance(n,str) or not n.strip() for n in names):
+            raise ValueError('REGION_NAMES必须提供三个不同的非空区域名称。')
+        colors=self.config['REGION_COLORS']
+        if len(colors)!=3 or any(not isinstance(c,(tuple,list)) or len(c)!=3 or any(type(v) is not int or not 0<=v<=255 for v in c) for c in colors):
+            raise ValueError('区域颜色必须为三组BGR整数。')
+        for key in ('REGION_LINE_WIDTH','REGION_FONT_SIZE'):
+            if type(self.config[key]) is not int or self.config[key]<=0:
+                raise ValueError(key+'必须为正整数。')
+        if type(self.config['REGION_BOTTOM_MARGIN']) is not int or self.config['REGION_BOTTOM_MARGIN']<0:
+            raise ValueError('REGION_BOTTOM_MARGIN必须为非负整数。')
+        if type(self.config['SHOW_REGIONS']) is not bool:
+            raise ValueError('SHOW_REGIONS必须为布尔值。')
+        if not self.font_path.is_file():
+            raise ValueError('缺少指定中文字体：'+str(self.font_path))
+        from PIL import ImageFont
+        ImageFont.truetype(str(self.font_path),24)
+        self._layer(720,405)
+
+    @lru_cache(maxsize=4)
+    def _layer(self,width,height):
+        from PIL import Image,ImageDraw,ImageFont
+        import numpy as np
+        c=self.config
+        image=Image.new('RGBA',(width,height),(0,0,0,0))
+        draw=ImageDraw.Draw(image)
+        cuts=(0,width//3,2*width//3,width)
+        rgba=lambda bgr:tuple(reversed(bgr))+(255,)
+        self.last_label_bounds=[]
+        if c['SHOW_REGIONS']:
+            for index,name in enumerate(c['REGION_NAMES']):
+                left,right=cuts[index],cuts[index+1]
+                color=c['REGION_COLORS'][index]
+                draw.rectangle((left+1,1,right-2,height-2),outline=rgba(color),width=c['REGION_LINE_WIDTH'])
+                size=max(1,min(c['REGION_FONT_SIZE'],round(height*.07),(right-left-8)//len(name)))
+                font=ImageFont.truetype(str(self.font_path),size)
+                bbox=self._text_bbox(draw,name,font)
+                tw,th=bbox[2]-bbox[0],bbox[3]-bbox[1]
+                margin=min(c['REGION_BOTTOM_MARGIN'],max(2,height//5))
+                x=(left+right-1-tw)/2-bbox[0]
+                y=max(2,height-margin-th)-bbox[1]
+                draw.rectangle((max(left+2,int(x+bbox[0])-4),int(y+bbox[1])-3,
+                                min(right-2,int(x+bbox[2])+4),min(height-2,int(y+bbox[3])+3)),fill=rgba(color))
+                brightness=.114*color[0]+.587*color[1]+.299*color[2]
+                text_color=c['BRIGHT_LABEL_TEXT'] if brightness>=128 else c['DARK_LABEL_TEXT']
+                draw.text((x,y),name,font=font,fill=rgba(text_color))
+                self.last_label_bounds.append((name,(x+bbox[0],y+bbox[1],x+bbox[2],y+bbox[3])))
+        array=np.asarray(image)
+        return np.ascontiguousarray(array[:,:,:3][:,:,::-1]),np.ascontiguousarray(array[:,:,3])
+
+    def apply(self,frame):
+        import cv2
+        height,width=frame.shape[:2]
+        if height<32 or width<24:
+            raise ValueError('三区画面要求宽>=24、高>=32。')
+        color,mask=self._layer(width,height)
+        cv2.copyTo(color,mask,frame)
+        return frame
+
+
+class StandardLog(ExperimentLog):
+    SCENES=REGION_NAMES
+    METADATA_COLUMNS=('设备编号','项目名称','监测点位')
+    COLUMNS=('监测区域','区域颜色（BGR）','是否识别到火焰','是否警报','警报类型')
+
+    def __init__(self,metadata,config,entry_path,output_root=None):
+        self.metadata={key:str(metadata.get(key,'')) for key in self.METADATA_COLUMNS}
+        self.config=dict(config)
+        base=Path(output_root) if output_root else find_desktop()/'成果输出'
+        identity=safe_name(self.metadata['设备编号'])
+        project=safe_name(self.metadata['项目名称'])
+        self.folder=base/identity/project
+        self.folder.mkdir(parents=True,exist_ok=True)
+        stem='{}_{}_{}'.format(project,identity,datetime.now().strftime('%Y%m%d_%H%M%S_%f'))
+        self.path=self.folder/(stem+'.csv')
+        self.error_path=self.folder/(stem+'_异常.csv')
+        self.code_path=self.folder/(stem+'.py')
+        shutil.copyfile(entry_path,self.code_path)
+        self.device='初始化中' if config['ENABLE_BUZZER'] else '未启用'
+        self.rows={scene:self._empty_row(scene) for scene in self.SCENES}
+        self._first_seen=[None]*3
+        self._last=None
+        self._queue,self._stop,self._lock=Queue(maxsize=512),Event(),Lock()
+        self.dropped=0
+        self._save()
+        self._thread=Thread(target=self._worker,name='standard-fire-csv',daemon=True)
+        self._thread.start()
+        LOG.info('管廊成果CSV：%s；本次入口源码：%s',self.path,self.code_path)
+
+    def _empty_row(self,scene):
+        index=self.SCENES.index(scene)
+        return {**self.metadata,'监测区域':scene,
+                '区域颜色（BGR）':str(tuple(self.config['DISPLAY']['REGION_COLORS'][index])),
+                '是否识别到火焰':'未验证','是否警报':'未验证','警报类型':'未验证'}
+
+    def _save(self):
+        fields=[*self.METADATA_COLUMNS,*self.COLUMNS]
+        temporary=self.path.with_suffix('.csv.tmp')
+        with temporary.open('w',encoding='utf-8-sig',newline='') as stream:
+            writer=csv.DictWriter(stream,fields)
+            writer.writeheader()
+            writer.writerows({key:self._safe_cell(row.get(key,'')) for key in fields} for row in self.rows.values())
+        temporary.replace(self.path)
+
+    def _sample(self,data):
+        counts,mode,now=data.get('counts'),data.get('mode'),data['now']
+        if counts is None or len(counts)!=3 or mode not in SOUND_NAMES:
+            self._first_seen=[None]*3
+            self._last=None
+            return
+        if self._last is None or now<=self._last or now-self._last>self.config['RESULT_TIMEOUT']:
+            self._first_seen=[None]*3
+        self._last=now
+        for index,count in enumerate(counts):
+            if count<=0:
+                self._first_seen[index]=None
+                continue
+            if self._first_seen[index] is None:
+                self._first_seen[index]=now
+            if now-self._first_seen[index]+1e-9<self.config['CONFIRM_TIME']:
+                continue
+            self.rows[self.SCENES[index]].update({'是否识别到火焰':'是',
+                '是否警报':'否' if mode=='silent' else '是','警报类型':SOUND_NAMES[mode]})
+
+
+class StandardSession(TeachingSession):
+    LOG_CLASS=StandardLog
+    BUZZER_CLASS=ZoneBuzzer
+
+    def update_regions(self,cable_joint,power_equipment,maintenance_passage,now=None):
+        now=time.monotonic() if now is None else now
+        counts=(cable_joint,power_equipment,maintenance_passage)
+        mode=None
+        if not self._disabled:
+            try:
+                self.commands.clear()
+                self.rule(*counts)
+                if self.commands.calls!=1 or self.commands.mode not in SOUND_NAMES:
+                    raise ValueError('每帧必须提交一次声音模式或静音请求。')
+                mode=self.commands.mode
+            except Exception as exc:
+                self._disabled=True
+                self.log.submit('error',action='管廊区域联动',error=str(exc))
+                self.log.submit('device',status='联动停用：判断异常')
+                self.stop()
+                LOG.exception('区域判断异常，联动停用，识别继续运行')
+        if self.buzzer is not None and mode is not None:
+            self.buzzer.update(mode,now)
+        state=(counts,mode)
+        interval=min(.25,self.config['CONFIRM_TIME']) if self.config['CONFIRM_TIME']>0 else .25
+        if state!=self._last_state or self._last_record is None or now-self._last_record>=interval:
+            self.log.submit('sample',counts=counts,mode=mode,now=now)
+            self._last_state,self._last_record=state,now
+
+
+
+# 以下对象由系统维护，保存中文图层缓存并收集声音请求，由程序维护。
 _zone_overlay = None  # 中文区域图层按实际画面尺寸缓存
 buzzer = ZoneCommands()  # 提交模式请求的接口；不是底层驱动
 
 # 区域统计：使用原图坐标判断火焰中心，分界点归右侧，避免重复计数。
 # 参数results由识别流程提供，只包含本帧高置信度火焰；frame_size为原图的高、宽。
 def count_fire_regions(results, frame_size):
-    # results由系统提供，仅包含本帧高置信度火焰；坐标为原图像素。
-    width = frame_size[1]
-    rebar_count = temporary_work_count = material_count = 0
+    height, width = frame_size
+    counts = [0, 0, 0]
     for fire in results:
         x1, y1, x2, y2 = fire.box
-        # 使用原图坐标计算火焰框中心。
-        center_x = (x1 + x2) / 2
-        center_y = (y1 + y2) / 2
-        # 按画面三等分归类，分界点归右侧，避免重复计数。
-        if not (0 <= center_x < width and 0 <= center_y < frame_size[0]):
+        center_x, center_y = (x1+x2)/2, (y1+y2)/2
+        if not (0 <= center_x < width and 0 <= center_y < height):
             continue
-        if center_x < width // 3:
-            rebar_count += 1
-        elif center_x < 2 * width // 3:
-            temporary_work_count += 1
-        else:
-            material_count += 1
-    return material_count, rebar_count, temporary_work_count
+        index = 0 if center_x < width//3 else 1 if center_x < 2*width//3 else 2
+        counts[index] += 1
+    return tuple(counts)
 
 
-# 配置采集与启动校验：记录本次实际设置，预先检查中文字体与参数。
-def permit_enabled():
-    # 本题固定为钢筋区的一次限时授权；保留接口，不读取学生作答文字。
-    return True
+# 配置采集与启动校验：预先检查中文字体与参数。
+
 
 
 def display_config():
-    result = {key: globals()[key] for key in (
-        'REGION_NAMES','FONT_PATH','SHOW_REGIONS','SHOW_AUTH_STATUS','SHOW_STATS',
-        'REGION_LINE_WIDTH','REGION_FONT_SIZE','REGION_TEXT_COLOR',
-        'REGION_BOTTOM_MARGIN','REGION_STATUS_FONT_SIZE',
-        'AUTH_STATUS_POSITION','COLOR_FIRE_HIGH','COLOR_FIRE_LOW','BOX_LINE_WIDTH',
-        'LABEL_FONT_SCALE','LABEL_LINE_WIDTH','BRIGHT_LABEL_TEXT','DARK_LABEL_TEXT',
-        'STATS_POSITION','STATS_FONT_SCALE','STATS_TEXT_COLOR','STATS_LINE_WIDTH',
-        'PREVIEW_LONG_EDGE','JPEG_QUALITY','FRAME_WIDTH','FRAME_HEIGHT')}
-    result['REGION_COLORS'] = (COLOR_REBAR_AREA, COLOR_TEMPORARY_WORK_AREA, COLOR_MATERIAL_AREA)
-    result['PERMIT_VALID'] = permit_enabled()
-    result['PERMIT_REGION'] = '钢筋加工区'
-    return result
+    return {'REGION_NAMES': REGION_NAMES,
+            'REGION_COLORS': (COLOR_CABLE_JOINT_AREA, COLOR_POWER_EQUIPMENT_AREA, COLOR_MAINTENANCE_PASSAGE_AREA),
+            'REGION_LINE_WIDTH': REGION_LINE_WIDTH, 'REGION_FONT_SIZE': REGION_FONT_SIZE,
+            'REGION_BOTTOM_MARGIN': REGION_BOTTOM_MARGIN, 'SHOW_REGIONS': SHOW_REGIONS,
+            'BRIGHT_LABEL_TEXT': BRIGHT_LABEL_TEXT, 'DARK_LABEL_TEXT': DARK_LABEL_TEXT}
 
 
 def get_zone_overlay():
     global _zone_overlay
     if _zone_overlay is None:
-        _zone_overlay = ZoneOverlay(FONT_PATH, display_config())
+        _zone_overlay = StandardOverlay(FONT_PATH, display_config())
     return _zone_overlay
 
 
-def teaching_config(enabled):
-    PermitWindow(permit_enabled(), PERMIT_DURATION)  # 校验时长，不开始计时。
-    validate_display(display_config())
+def runtime_config(enabled):
     for key in ('BOX_LINE_WIDTH','LABEL_LINE_WIDTH','STATS_LINE_WIDTH'):
         if type(globals()[key]) is not int or globals()[key] <= 0:
             raise ValueError(key+'必须为正整数。')
     for key in ('LABEL_FONT_SCALE','STATS_FONT_SCALE'):
         if not math.isfinite(globals()[key]) or globals()[key] <= 0:
             raise ValueError(key+'必须为有限正数。')
-    get_zone_overlay()  # 启动时验证字体与Pillow，避免后台输出才报错。
-    for name, color in (('COLOR_FIRE_HIGH', COLOR_FIRE_HIGH), ('COLOR_FIRE_LOW', COLOR_FIRE_LOW)):
-        if not isinstance(color, (tuple, list)) or len(color) != 3 or any(type(v) is not int or not 0 <= v <= 255 for v in color):
-            raise ValueError('{} 必须是三个0..255整数的BGR颜色。'.format(name))
+    for key in ('COLOR_FIRE_HIGH','COLOR_FIRE_LOW','BRIGHT_LABEL_TEXT','DARK_LABEL_TEXT','STATS_TEXT_COLOR'):
+        color=globals()[key]
+        if not isinstance(color,(tuple,list)) or len(color)!=3 or any(type(v) is not int or not 0<=v<=255 for v in color):
+            raise ValueError(key+'必须为三个0..255整数的BGR颜色。')
+    get_zone_overlay()
     return {'ENABLE_BUZZER': enabled, 'BUZZER_MODULE_INDEX': BUZZER_MODULE_INDEX,
             'BUZZER_REPEAT': BUZZER_REPEAT, 'CONFIRM_TIME': DETECTION_CONFIRM_TIME,
             'RESET_TIME': DETECTION_RESET_TIME, 'BEEP_COUNT': BEEP_COUNT,
             'BEEP_DURATION': BEEP_DURATION, 'BEEP_INTERVAL': BEEP_INTERVAL,
             'BEEP_REPEAT_INTERVAL': BEEP_REPEAT_INTERVAL, 'SCAN_WAIT': BUZZER_SCAN_WAIT,
             'RESULT_TIMEOUT': BUZZER_RESULT_TIMEOUT, 'SENSOR_LIB': str(SENSOR_LIB),
-            'COLOR_FIRE_HIGH': COLOR_FIRE_HIGH, 'COLOR_FIRE_LOW': COLOR_FIRE_LOW,
-            'FONT_PATH': str(FONT_PATH),
-            'PERMIT_REGION': '钢筋加工区', 'PERMIT_VALID': permit_enabled(), 'PERMIT_DURATION': PERMIT_DURATION, 'REGION_ORDER': list(REGION_NAMES), 'DISPLAY': display_config()}
+            'DISPLAY': display_config()}
 
 
 # ==================== 05 启动参数与环境检查 ====================
 # 直接运行时使用顶部设置；命令行参数用于设备调试，覆盖本次运行的默认值。
 # 环境检查只读取依赖、模型和字体，不启动NPU或蜂鸣器。
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description='YOLO26 V20 火焰教学版：仅RKNN模型，使用RK3588 NPU推理，兼容原 Fire_Seg 接口')
+    parser = argparse.ArgumentParser(description='管廊电力舱火情监测标准版：RK3588 NPU、三区有火即报警、首帧记录')
     parser.add_argument('--model', type=Path, default=MODEL_PATH, help='YOLO26 .rknn 或含单个RKNN的导出目录；必须使用NPU')
     parser.add_argument('--source', default=str(CAMERA_INDEX), help='摄像头编号、/dev/video41、图片、视频、RTSP地址')
     parser.add_argument('--labels', nargs='+', help='缺少模型元数据时，按训练类别ID顺序填写，如 --labels fire smoke')
@@ -277,13 +368,13 @@ def parse_args(argv=None):
     coordinates.add_argument('--normalized-boxes', action='store_true', dest='normalized_boxes', help='坐标按输入宽高归一化，适配没有元数据的INT8导出')
     coordinates.add_argument('--pixel-boxes', action='store_false', dest='normalized_boxes', help='明确使用像素坐标')
     parser.set_defaults(normalized_boxes=None)
-    parser.add_argument('--conf', type=float, default=CONFIDENCE_HIGH)
+    parser.add_argument('--conf', type=float, default=CONFIDENCE_HIGH, help='显示、报警及记录的统一门槛，0.5至1.0')
     parser.add_argument('--iou', type=float, default=0.45, help='原始输出按类别NMS的IoU阈值')
     parser.add_argument('--max-det', type=int, default=100)
     parser.add_argument('--track-conf', type=float, default=CONFIDENCE_LOW, help='已有火焰目标续跟的最低置信度，默认0.25')
     parser.add_argument('--track-max-gap', '--track-hold', dest='track_max_gap', type=float, default=0.3,
                         help='历史轨迹可参与匹配的最长间隔，默认0.3秒；不补画漏检框，旧参数名track-hold兼容')
-    parser.add_argument('--no-track', action='store_true', help='关闭短时跟踪，恢复V3检测和平滑流程')
+    parser.add_argument('--no-track', action='store_true', help='关闭短时关联，使用当前检测及坐标平滑流程')
     parser.add_argument('--no-smooth', action='store_true', help='关闭视频稳框，直接使用当前帧原始检测框')
     parser.add_argument('--smooth-alpha', type=float, default=0.4, help='视频坐标平滑系数，默认0.4；越小越稳，跟随延迟越大')
     parser.add_argument('--smooth-iou', type=float, default=0.25, help='同类框跨帧匹配的最小IoU，默认0.25')
@@ -291,7 +382,7 @@ def parse_args(argv=None):
     parser.add_argument('--core', choices=['auto', '0', '1', '2', 'all'], default=NPU_CORE, help='RK3588 NPU核心：自动、单个核心或三个核心')
     parser.add_argument('--width', type=int, default=FRAME_WIDTH, help='摄像头请求宽度，默认1920；不支持时回退')
     parser.add_argument('--height', type=int, default=FRAME_HEIGHT, help='摄像头请求高度，默认1080；不支持时回退')
-    parser.add_argument('--sync', action='store_true', help='使用同步取帧/输出，便于对比；默认实时流使用hat20同帧流水线')
+    parser.add_argument('--sync', action='store_true', help='使用同步取帧/输出，便于对比；默认实时流使用最新帧流水线')
     parser.add_argument('--preview-size', type=int, default=PREVIEW_LONG_EDGE, help='视频回传/预览最长边，默认720，只缩小；0保持原尺寸')
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--image-port', type=int, default=8088)
@@ -299,9 +390,9 @@ def parse_args(argv=None):
     parser.add_argument('--no-udp', action='store_true')
     parser.add_argument('--jpeg-quality', type=int, default=JPEG_QUALITY)
     parser.add_argument('--show', action='store_true', help='有桌面时打开本地预览，按q/空格/Esc退出')
-    parser.add_argument('--output', type=Path, default=ROOT / 'output_v20', help='静态图片的火焰标注JPEG和JSON保存目录，默认output_v20')
+    parser.add_argument('--output', type=Path, default=ROOT / 'output_standard', help='静态图片的火焰标注JPEG和JSON保存目录，默认output_standard')
     parser.add_argument('--max-frames', type=int, default=0)
-    parser.add_argument('--ptz', action='store_true', help='V20教学版不支持云台，此参数会明确报错')
+    parser.add_argument('--ptz', action='store_true', help='标准版不支持云台，此参数会明确报错')
     parser.add_argument('--ptz-lib', type=Path, default=ROOT / 'libSmartSensorDriver.so')
     parser.add_argument('--ptz-module', type=int, default=17)
     parser.add_argument('--ptz-speed', type=int, choices=range(1, 6), default=1)
@@ -309,12 +400,14 @@ def parse_args(argv=None):
     parser.add_argument('--invert-x', action='store_true')
     parser.add_argument('--invert-y', action='store_true')
     parser.add_argument('--check', action='store_true', help='仅检查系统、依赖及模型文件，不运行NPU')
-    parser.add_argument('--no-buzzer', action='store_true', help='关闭真实蜂鸣器，但仍核验学生判断并归档')
+    parser.add_argument('--no-buzzer', action='store_true', help='关闭真实蜂鸣器，保留火情判断与成果记录')
     parser.add_argument('--results-dir', type=Path, default=RESULTS_DIR, help='成果输出根目录，默认用户桌面/成果输出')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args(argv)
-    if not 0 <= args.conf <= 1 or not 0 <= args.iou <= 1:
-        parser.error('--conf/--iou 必须在0..1之间')
+    if not 0.5 <= args.conf <= 1:
+        parser.error('--conf 必须在0.5..1之间，标准版不显示或记录低于50%的火焰。')
+    if not 0 <= args.iou <= 1:
+        parser.error('--iou 必须在0..1之间')
     if not 0 <= args.track_conf <= 1:
         parser.error('--track-conf 必须在0..1之间')
     if (not args.no_track and Path(args.source).suffix.lower() not in IMAGE_EXTENSIONS
@@ -343,7 +436,7 @@ def parse_args(argv=None):
     if args.boxes_output is not None and {args.boxes_output, args.scores_output} != {0, 1}:
         parser.error('双输出的两个索引必须分别为0和1')
     if args.ptz:
-        parser.error('V20教学版不启用云台；需要云台时请使用V4。')
+        parser.error('标准版不启用云台。')
     return args
 
 
@@ -430,9 +523,11 @@ def check_environment(args):
 
 # ==================== 06 识别画面绘制 ====================
 # 识别框与当前图像一同缩放，保证预览画面和原图统计对应同一个位置。
-# 高分、低分使用各自颜色；区域名称使用指定中文字体绘制。
-def draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count=None):
+# 只显示达到高置信度阈值的本帧火焰框；区域名称使用指定中文字体绘制。
+def draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count=None, min_confidence=CONFIDENCE_HIGH):
     import cv2
+    detections = [d for d in detections if d.class_id == fire_class and d.confidence is not None
+                  and d.confidence >= min_confidence]
     fire_count = observed_count if observed_count is not None else sum(
         d.class_id == fire_class and getattr(d, 'state', 'detected') == 'detected' for d in detections)
     for item in detections:
@@ -455,20 +550,17 @@ def draw_results(frame, detections, labels, fire_class, inference_ms, fps, obser
                     STATS_POSITION, cv2.FONT_HERSHEY_SIMPLEX, STATS_FONT_SCALE, STATS_TEXT_COLOR, STATS_LINE_WIDTH)
 
 
-def render_preview(frame, detections, labels, fire_class, inference_ms, fps, long_edge, observed_count=None, permit_state=None):
-    """hat20-style same-frame rendering; scale boxes with their own image."""
+def render_preview(frame, detections, labels, fire_class, inference_ms, fps, long_edge, observed_count=None, min_confidence=CONFIDENCE_HIGH):
+    """Scale the current observations with their own image, then draw the three zones."""
     import cv2
     height, width = frame.shape[:2]
-    scale = min(1.0, long_edge / max(height, width)) if long_edge else 1.0
+    scale = min(1.0, long_edge/max(height,width)) if long_edge else 1.0
     if scale < 1:
-        frame = cv2.resize(frame, (max(1, round(width * scale)), max(1, round(height * scale))))
-        scale_x, scale_y = frame.shape[1] / width, frame.shape[0] / height
-        detections = [replace(d, box=(round(d.box[0] * scale_x), round(d.box[1] * scale_y),
-                                      round(d.box[2] * scale_x), round(d.box[3] * scale_y))) for d in detections]
-    draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count)
-    get_zone_overlay().apply(frame, permit_enabled() if permit_state is None else permit_state.valid,
-                             None if permit_state is None else '钢筋加工区：'+permit_state.text)
-    return frame
+        frame = cv2.resize(frame,(max(1,round(width*scale)),max(1,round(height*scale))))
+        sx,sy = frame.shape[1]/width,frame.shape[0]/height
+        detections = [replace(d,box=(round(d.box[0]*sx),round(d.box[1]*sy),round(d.box[2]*sx),round(d.box[3]*sy))) for d in detections]
+    draw_results(frame,detections,labels,fire_class,inference_ms,fps,observed_count,min_confidence)
+    return get_zone_overlay().apply(frame)
 
 
 # ==================== 07 视频识别与联动 ====================
@@ -518,7 +610,7 @@ def run(args, lesson):
             # 兼容没有类别筛选接口的旧版检测模块，入口仍会在后续处理前过滤火焰。
             LOG.warning('detector.py 为旧版，使用入口火焰过滤。建议同步更新 detector.py，'
                         '使类别筛选在 max-det 数量限制前完成。')
-        LOG.info('V20 仅识别火焰；烟雾不参与绘制、统计、发送或云台控制')
+        LOG.info('管廊标准版仅识别火焰；烟雾不参与显示、计数或联动')
         LOG.info('标签顺序=%s；火焰类别=%s (ID=%d)', labels, labels[fire_class], fire_class)
         if not args.no_udp:
             LOG.info('成功识别后：%s:%d发送JPEG，%s:%d发送有/无。推理错误不会报告为无火。',
@@ -529,7 +621,7 @@ def run(args, lesson):
         tracker = FireTracker(fire_class, args.conf, args.track_conf, args.track_max_gap,
                               1.0 if args.no_smooth else args.smooth_alpha, args.smooth_iou, args.max_det) if tracking_enabled else None
         if tracker is not None:
-            LOG.info("稳框关联已开启：发现>=%.2f，低分续跟>=%.2f，匹配历史<=%.2fs；当前帧漏检立即无框",
+            LOG.info("稳框关联已开启：显示/报警/记录>=%.2f，内部匹配>=%.2f，匹配历史<=%.2fs；低分及漏检不画框",
                      args.conf, args.track_conf, args.track_max_gap)
         smoother = None if is_image or args.no_smooth or tracker is not None else BoxSmoother(
             args.smooth_alpha, args.smooth_iou, args.smooth_max_gap)
@@ -560,7 +652,6 @@ def run(args, lesson):
                 reader.start()
                 capture, first_frame = None, None  # 摄像头交由采集线程释放。
         lesson.start()
-        permit_window = PermitWindow(permit_enabled(), PERMIT_DURATION)
         last_log = udp_error_time = 0.0
         count = 0
         fps = 0.0
@@ -581,8 +672,9 @@ def run(args, lesson):
 
             def publish(job):
                 # 图像及其对应检测框作为同一个输出任务传递，避免错帧叠框。
-                raw, results, observed, cost, job_fps, job_permit = job
-                preview = render_preview(raw, results, labels, fire_class, cost, job_fps, args.preview_size, len(observed), job_permit)
+                raw, results, observed, cost, job_fps = job
+                preview = render_preview(raw, results, labels, fire_class, cost, job_fps, args.preview_size, len(observed),
+                                         min_confidence=args.conf)
                 ok, encoded = cv2.imencode('.jpg', preview, [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_quality])
                 if not ok:
                     raise RuntimeError('标注图片JPEG编码失败')
@@ -591,7 +683,7 @@ def run(args, lesson):
             output_worker = LatestOutput(publish, on_close=live_sender.close)
             output_worker.start()
             sender = None  # 套接字交由输出线程关闭，异常时也由该线程清理。
-            LOG.info('hat20同帧流水线：只保留最新输入/输出，JPEG与UDP在后台执行')
+            LOG.info('最新帧流水线：只保留最新输入/输出，JPEG与UDP在后台执行')
         while not stopping[0]:
             loop_start = time.perf_counter()
             if output_worker is not None and output_worker.error is not None:
@@ -628,7 +720,8 @@ def run(args, lesson):
             if tracker is not None:
                 tracked = tracker.update(detections, captured, frame.shape[:2])
                 # 兼容性防护：忽略旧模块可能返回的无当前置信度预测框。
-                detections = [d for d in tracked.display if d.confidence is not None]
+                # 低分匹配仅保留在跟踪器内部，输出画面与高分验收使用同一门槛。
+                detections = [d for d in tracked.display if d.confidence is not None and d.confidence >= args.conf]
                 fire_detections = list(tracked.observed)
             else:
                 detections = [d for d in detections if d.confidence >= args.conf]
@@ -636,20 +729,18 @@ def run(args, lesson):
                     detections = smoother.update(detections, captured, frame.shape[:2])
                 fire_detections = detections
             smooth_ms = (time.perf_counter() - smooth_started) * 1000
-            material_count, rebar_count, temporary_work_count = count_fire_regions(fire_detections, frame.shape[:2])
-            # 使用真实单调时钟，不使用视频时间戳，不因有火或无火而重新计时。
-            permit_state = permit_window.snapshot()
-            lesson.update_regions(material_count, rebar_count, temporary_work_count,
-                                  sum(getattr(d, 'state', 'detected') == 'low' for d in detections), permit_state.valid)
+            cable_joint_count, power_equipment_count, maintenance_passage_count = count_fire_regions(fire_detections, frame.shape[:2])
+            lesson.update_regions(cable_joint_count, power_equipment_count, maintenance_passage_count)
             fire_present = bool(fire_detections)
             if ptz is not None:
                 target = max(fire_detections, key=lambda d: d.box[2] - d.box[0], default=None)
                 ptz.update(None if target is None else target.box, frame.shape[1], frame.shape[0])
             if output_worker is not None:
-                output_worker.submit((frame, tuple(detections), tuple(fire_detections), inference_ms, fps, permit_state))
+                output_worker.submit((frame, tuple(detections), tuple(fire_detections), inference_ms, fps))
             if sender is not None or args.show or is_image:
                 frame = render_preview(frame, detections, labels, fire_class, inference_ms, fps,
-                                       0 if is_image else args.preview_size, len(fire_detections), permit_state)
+                                       0 if is_image else args.preview_size, len(fire_detections),
+                                       min_confidence=args.conf)
             jpeg = None
             if sender is not None or is_image:
                 ok, encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_quality])
@@ -670,22 +761,22 @@ def run(args, lesson):
                     LOG.info('当前帧处理延迟=%.0fms 丢弃旧输入=%d 旧输出=%d',
                              (time.monotonic() - captured) * 1000, reader.dropped,
                              output_worker.dropped if output_worker is not None else 0)
-                LOG.info('钢筋加工区=%d 临时作业区=%d 材料区=%d 授权有效=%s 剩余=%d秒',
-                         rebar_count, temporary_work_count, material_count, permit_state.valid, permit_state.remaining)
+                LOG.info('电缆接头区=%d 配电设备区=%d 检修通道区=%d',
+                         cable_joint_count, power_equipment_count, maintenance_passage_count)
                 last_log = now
             if is_image:
                 args.output.mkdir(parents=True, exist_ok=True)
-                destination = args.output / (source_path.stem + '_yolo26_v20.jpg')
+                destination = args.output / (source_path.stem + '_standard.jpg')
                 destination.write_bytes(jpeg)
-                report = {'version': 20, 'recognition': 'fire_only', 'model': str(model), 'labels': labels, 'fire_class': fire_class,
+                report = {'version': 'standard', 'scenario': 'utility_tunnel_power_compartment', 'recognition': 'fire_only', 'model': str(model), 'labels': labels, 'fire_class': fire_class,
                           'fire_present': fire_present, 'fire_count': len(fire_detections),
-                          'permit_valid': permit_state.valid, 'permit_remaining_seconds': permit_state.remaining, 'regions': {'rebar': rebar_count, 'temporary_work': temporary_work_count, 'material': material_count}, 'inference_ms': inference_ms,
+                          'regions': {'cable_joint': cable_joint_count, 'power_equipment': power_equipment_count, 'maintenance_passage': maintenance_passage_count}, 'inference_ms': inference_ms,
                           'timing_ms': getattr(detector, 'last_timing', {}),
                           'detections': [{'box': list(d.box), 'class_id': d.class_id, 'label': labels[d.class_id], 'confidence': d.confidence} for d in detections]}
                 destination.with_suffix('.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
                 LOG.info('已保存标注图片和JSON：%s', destination)
             if args.show:
-                cv2.imshow('YOLO26 V20 Fire', frame)
+                cv2.imshow('Utility Tunnel Fire Standard', frame)
                 if (cv2.waitKey(0 if is_image else 1) & 0xff) in (ord('q'), 27, ord(' ')):
                     break
             elapsed = time.perf_counter() - loop_start
@@ -741,9 +832,9 @@ def main(argv=None):
     try:
         if args.check:
             return check_environment(args)
-        config = teaching_config(ENABLE_BUZZER and not args.no_buzzer)
-        LOG.info('V20 学生版：实际授权固定为钢筋区；时长=%s秒；到期后不自动续期', PERMIT_DURATION)
-        lesson = ZoneSession(experiment_info, config, __file__, control_buzzer, buzzer, args.results_dir)
+        config = runtime_config(ENABLE_BUZZER and not args.no_buzzer)
+        LOG.info('管廊电力舱标准版：全区域有火即报警，额外确认时间=%s秒', DETECTION_CONFIRM_TIME)
+        lesson = StandardSession(runtime_info, config, __file__, control_buzzer, buzzer, args.results_dir)
         run(args, lesson)
         return 0
     except KeyboardInterrupt:

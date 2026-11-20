@@ -14,6 +14,6 @@ python3 tools/check_device.py --npu-test --image testimg/fire1.jpg --core all
 python3 fire_yolo26_v20.py --source testimg/fire1.jpg
 ```
 
-可分别将文件名换成 `fire2.jpg` 或 `fire3.jpg`。这里只做指定单图，不增加文件夹批量识别。单张图片不能完成四行教学 CSV：仍需在摄像头下分别展示三区及钢筋区授权前后，并稳定达到确认时间。
+可分别将文件名换成 `fire2.jpg` 或 `fire3.jpg`。这里只做指定单图，不增加文件夹批量识别。当前首帧达到高分阈值（默认50%）就提交对应单区记录，一张图片仍不能覆盖全部四项：请在摄像头下分别展示三区及钢筋区授权前后，并现场核对声音。
 
 这些图片不是带标注的精度评估集，也不应仅凭三张图片验证模型准确率或建立 INT8 标定集。

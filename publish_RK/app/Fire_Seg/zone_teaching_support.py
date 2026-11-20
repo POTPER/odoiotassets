@@ -225,6 +225,7 @@ class ZoneLog(ExperimentLog):
                 or now-self._last>self.config['RESULT_TIMEOUT']):
             self._candidate,self._since=candidate,now
         self._last=now
+        # 确认时间为0时，首次有效单区观测即可记录，不要求下一帧再次确认。
         if now-self._since+1e-9<self.config['CONFIRM_TIME']:
             return
         # 直接记录学生函数实际提交的请求；即使错报、漏报、类型错误，也如实保留。
@@ -269,6 +270,8 @@ class ZoneSession(TeachingSession):
                 LOG.exception('判断异常，联动停用，识别继续运行')
         if self.buzzer is not None and mode is not None: self.buzzer.update(mode,now)
         state=(material,rebar,temporary_work,low,permit,mode)
-        if state!=self._last_state or self._last_record is None or now-self._last_record>=min(.25,self.config['CONFIRM_TIME']):
+        # 场景变化首帧立即入队；同一状态仅保留心跳，零确认时间不应导致每帧重写CSV。
+        interval=min(.25,self.config['CONFIRM_TIME']) if self.config['CONFIRM_TIME']>0 else .25
+        if state!=self._last_state or self._last_record is None or now-self._last_record>=interval:
             self.log.submit('sample',material=material,work=rebar,outside=temporary_work,low=low,permit=permit,mode=mode,now=now)
             self._last_state,self._last_record=state,now

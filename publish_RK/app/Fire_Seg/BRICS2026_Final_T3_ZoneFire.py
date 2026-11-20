@@ -121,12 +121,12 @@ MODEL_PATH = ROOT / 'model/fire_yolo26.rknn'
 PERMIT_DURATION = 60
 
 # 摄像头与NPU推理
-# 高置信度火焰显示红色，低置信度实测续跟显示黄色；低分结果不触发声音，本帧漏检立即无框。
+# 达到高置信度阈值的火焰显示红色；低分仅用于内部续跟，不绘制、不计数、不触发声音或成果记录。
 CAMERA_INDEX = 41  # 摄像头设备编号
 NPU_CORE = 'auto'  # auto自动选择；也可选0、1、2、all
 FRAME_WIDTH, FRAME_HEIGHT = 1920, 1080  # 请求采集宽度、高度，像素；不支持时按原流程回退
-CONFIDENCE_HIGH = 0.5  # 新目标发现与报警统计的高置信度阈值
-CONFIDENCE_LOW = 0.25  # 已有火焰目标的实测续跟阈值，低分不触发报警
+CONFIDENCE_HIGH = 0.5  # 检测框显示、报警判断和成果记录共用的高置信度阈值
+CONFIDENCE_LOW = 0.25  # 已有火焰目标的内部匹配阈值，低分结果不显示
 
 # 区域范围与中文显示
 # 画面固定按宽度三等分；左侧钢筋加工区，中间临时作业区，右侧材料堆放区。
@@ -146,7 +146,7 @@ AUTH_STATUS_POSITION = (6, 40)  # 授权状态左上角位置，预览画面像�
 # 识别框、标签与回传画面
 # 检测框与标签背景共用颜色；标签显示当前帧实际置信度，文字按背景亮度自动选色。
 COLOR_FIRE_HIGH = (0, 0, 255)  # 高置信度火焰，红色
-COLOR_FIRE_LOW = (0, 210, 255)  # 低置信度实测续跟，黄色
+COLOR_FIRE_LOW = (0, 210, 255)  # 保留配套模块的低分颜色配置；当前不显示低分框
 BOX_LINE_WIDTH = 2  # 识别框线宽，像素
 LABEL_FONT_SCALE = 0.6  # 识别标签字体比例
 LABEL_LINE_WIDTH = 1  # 识别标签文字线宽，像素
@@ -166,7 +166,7 @@ JPEG_QUALITY = 60  # JPEG质量，1至100；越高数据量越大
 ENABLE_BUZZER = True  # False关闭设备联动，识别和软件核验继续运行
 BUZZER_MODULE_INDEX = 2  # 蜂鸣器模块编号
 BUZZER_REPEAT = True  # True循环提示，False单组提示
-DETECTION_CONFIRM_TIME = 0.3  # 响应条件持续成立的确认时间，秒
+DETECTION_CONFIRM_TIME = 0.0  # 0表示首帧立即提交成果和声音请求，不额外等待；后台执行写入和声音
 DETECTION_RESET_TIME = 1.0  # 单组模式下，条件持续不成立后的复位时间，秒
 BEEP_COUNT = 2  # 通用每组鸣叫次数
 BEEP_DURATION = 0.2  # 通用每声持续时间，秒
@@ -430,9 +430,11 @@ def check_environment(args):
 
 # ==================== 06 识别画面绘制 ====================
 # 识别框与当前图像一同缩放，保证预览画面和原图统计对应同一个位置。
-# 高分、低分使用各自颜色；区域名称使用指定中文字体绘制。
-def draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count=None):
+# 只显示达到高置信度阈值的本帧火焰框；区域名称使用指定中文字体绘制。
+def draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count=None, min_confidence=CONFIDENCE_HIGH):
     import cv2
+    detections = [d for d in detections if d.class_id == fire_class and d.confidence is not None
+                  and d.confidence >= min_confidence]
     fire_count = observed_count if observed_count is not None else sum(
         d.class_id == fire_class and getattr(d, 'state', 'detected') == 'detected' for d in detections)
     for item in detections:
@@ -455,7 +457,7 @@ def draw_results(frame, detections, labels, fire_class, inference_ms, fps, obser
                     STATS_POSITION, cv2.FONT_HERSHEY_SIMPLEX, STATS_FONT_SCALE, STATS_TEXT_COLOR, STATS_LINE_WIDTH)
 
 
-def render_preview(frame, detections, labels, fire_class, inference_ms, fps, long_edge, observed_count=None, permit_state=None):
+def render_preview(frame, detections, labels, fire_class, inference_ms, fps, long_edge, observed_count=None, permit_state=None, min_confidence=CONFIDENCE_HIGH):
     """hat20-style same-frame rendering; scale boxes with their own image."""
     import cv2
     height, width = frame.shape[:2]
@@ -465,7 +467,7 @@ def render_preview(frame, detections, labels, fire_class, inference_ms, fps, lon
         scale_x, scale_y = frame.shape[1] / width, frame.shape[0] / height
         detections = [replace(d, box=(round(d.box[0] * scale_x), round(d.box[1] * scale_y),
                                       round(d.box[2] * scale_x), round(d.box[3] * scale_y))) for d in detections]
-    draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count)
+    draw_results(frame, detections, labels, fire_class, inference_ms, fps, observed_count, min_confidence)
     get_zone_overlay().apply(frame, permit_enabled() if permit_state is None else permit_state.valid,
                              None if permit_state is None else '钢筋加工区：'+permit_state.text)
     return frame
@@ -529,7 +531,7 @@ def run(args, lesson):
         tracker = FireTracker(fire_class, args.conf, args.track_conf, args.track_max_gap,
                               1.0 if args.no_smooth else args.smooth_alpha, args.smooth_iou, args.max_det) if tracking_enabled else None
         if tracker is not None:
-            LOG.info("稳框关联已开启：发现>=%.2f，低分续跟>=%.2f，匹配历史<=%.2fs；当前帧漏检立即无框",
+            LOG.info("稳框关联已开启：显示/报警/记录>=%.2f，内部匹配>=%.2f，匹配历史<=%.2fs；低分及漏检不画框",
                      args.conf, args.track_conf, args.track_max_gap)
         smoother = None if is_image or args.no_smooth or tracker is not None else BoxSmoother(
             args.smooth_alpha, args.smooth_iou, args.smooth_max_gap)
@@ -582,7 +584,8 @@ def run(args, lesson):
             def publish(job):
                 # 图像及其对应检测框作为同一个输出任务传递，避免错帧叠框。
                 raw, results, observed, cost, job_fps, job_permit = job
-                preview = render_preview(raw, results, labels, fire_class, cost, job_fps, args.preview_size, len(observed), job_permit)
+                preview = render_preview(raw, results, labels, fire_class, cost, job_fps, args.preview_size, len(observed), job_permit,
+                                         min_confidence=args.conf)
                 ok, encoded = cv2.imencode('.jpg', preview, [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_quality])
                 if not ok:
                     raise RuntimeError('标注图片JPEG编码失败')
@@ -628,7 +631,8 @@ def run(args, lesson):
             if tracker is not None:
                 tracked = tracker.update(detections, captured, frame.shape[:2])
                 # 兼容性防护：忽略旧模块可能返回的无当前置信度预测框。
-                detections = [d for d in tracked.display if d.confidence is not None]
+                # 低分匹配仅保留在跟踪器内部，输出画面与高分验收使用同一门槛。
+                detections = [d for d in tracked.display if d.confidence is not None and d.confidence >= args.conf]
                 fire_detections = list(tracked.observed)
             else:
                 detections = [d for d in detections if d.confidence >= args.conf]
@@ -649,7 +653,8 @@ def run(args, lesson):
                 output_worker.submit((frame, tuple(detections), tuple(fire_detections), inference_ms, fps, permit_state))
             if sender is not None or args.show or is_image:
                 frame = render_preview(frame, detections, labels, fire_class, inference_ms, fps,
-                                       0 if is_image else args.preview_size, len(fire_detections), permit_state)
+                                       0 if is_image else args.preview_size, len(fire_detections), permit_state,
+                                       min_confidence=args.conf)
             jpeg = None
             if sender is not None or is_image:
                 ok, encoded = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, args.jpeg_quality])
