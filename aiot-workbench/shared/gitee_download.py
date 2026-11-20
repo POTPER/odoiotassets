@@ -11,9 +11,9 @@ import uuid
 from core import SyncError, check_cancel, fsync_dir, relative_path
 
 
-# Bound JSON/base64 memory use on ARM devices. Larger files should use an
-# authorized raw download, a local import, or an explicit Releases source.
-MAX_BLOB_FILE_BYTES = 32 * 1024 * 1024
+# The complete workbench includes offline dependencies (~34 MiB). Allow that
+# package with bounded memory; larger installers must use a Releases source.
+MAX_BLOB_FILE_BYTES = 64 * 1024 * 1024
 
 
 def blob_sha(source, location, size, expected, cancel):
@@ -39,7 +39,7 @@ def blob_sha(source, location, size, expected, cancel):
 def download_blob(source, location, dest, size, expected, cancel, progress):
     check_cancel(cancel)
     if size > MAX_BLOB_FILE_BYTES:
-        raise SyncError("Gitee raw 拒绝下载，文件超过本工具 Blob API 的 32 MiB 安全范围：{}。"
+        raise SyncError("Gitee raw 拒绝下载，文件超过本工具 Blob API 的 64 MiB 安全范围：{}。"
                         "请登录 Gitee 下载后手动复制，或配置 Releases HTTPS 来源。".format(location))
     sha = blob_sha(source, location, size, expected, cancel)
     url = source.api_base + "/git/blobs/" + sha

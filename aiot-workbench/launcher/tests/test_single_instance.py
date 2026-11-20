@@ -78,6 +78,8 @@ class SingleInstanceTests(unittest.TestCase):
         fixture = self.base / 'owner.py'
         fixture.write_text('import os,sys\n'
                            'sys.path.insert(0,' + repr(str(Path(__file__).resolve().parents[1])) + ')\n'
+                           'sys.path.insert(0,' + repr(str(Path(__file__).resolve().parents[2])) + ')\n'
+                           'from bootstrap import configure; configure()\n'
                            'from single_instance import SingleInstance\n'
                            'instance=SingleInstance(sys.argv[1])\n'
                            'assert instance.start_or_activate()\n'

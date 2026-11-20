@@ -98,7 +98,7 @@ class GiteeDownloadTests(unittest.TestCase):
     def test_fallback_is_bounded_and_cancelled_download_cannot_commit(self):
         with patch('core.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = self.forbidden()
-            with self.assertRaisesRegex(SyncError, '32 MiB'):
+            with self.assertRaisesRegex(SyncError, '64 MiB'):
                 self.remote_source().download('large.ttf', self.base / 'font.ttf', MAX_BLOB_FILE_BYTES + 1,
                                        'git:' + 'b' * 40, None, lambda n: None)
             self.assertEqual(opener.return_value.open.call_count, 1)

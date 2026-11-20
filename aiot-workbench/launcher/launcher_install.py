@@ -10,6 +10,10 @@ import subprocess
 import sys
 import uuid
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from compat import is_relative_to
 from core import Engine, SyncError, assert_stopped, fsync_dir
 from launcher_runtime import config_directory, load_settings

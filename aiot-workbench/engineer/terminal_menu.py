@@ -211,7 +211,7 @@ class TerminalMenu:
 
     def save_settings(self):
         engine = self.engine(recover=False)
-        data = dict(self.config, target=str(engine.target), repo=self.args.repo, branch=self.args.branch,
+        data = dict(self.config, target=str(engine.target), publish_dir=str(engine.target), repo=self.args.repo, branch=self.args.branch,
                     sync_permissions=self.sync_permissions, repository_default_version=REPOSITORY_DEFAULT_VERSION,
                     file_extensions=list(self.extensions))
         atomic_json(settings_path(), data)

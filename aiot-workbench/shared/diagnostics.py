@@ -7,11 +7,11 @@ from pathlib import Path
 
 
 def settings_path():
-    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "publish-switcher/settings.json"
+    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "aiot-workbench/settings.json"
 
 
 def default_log_path():
-    return settings_path().parent / "logs/switcher.log"
+    return settings_path().parent / "logs/engineer.log"
 
 
 def setup_logging(path=None, console=False):

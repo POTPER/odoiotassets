@@ -5,6 +5,10 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from core import Engine, Source, SyncError, atomic_json, load_profile, read_json, sync_blockers, validate_catalog
 from diagnostics import default_log_path, settings_path, setup_logging
 from repository import DEFAULT_PROFILES, DEFAULT_REPOSITORY, directory_manifest, remote_profiles, validate_presets, repository_from_settings
@@ -32,7 +36,7 @@ def stdout_colors():
 
 def parser():
     p = argparse.ArgumentParser(description="publish 工具：按格式同步文件、切换整套配置、运行 IoT Demo、诊断差异和查看日志。")
-    p.add_argument("--version", action="version", version="Publish Switcher " + VERSION)
+    p.add_argument("--version", action="version", version="AIoT Workbench " + VERSION)
     p.add_argument("--target", help="publish 目录，默认读取已保存设置")
     p.add_argument("--repo", help="Gitee/GitHub 仓库，默认 https://gitee.com/potper/odoiotassets")
     p.add_argument("--branch", help="分支，留空使用仓库默认分支")
@@ -207,18 +211,10 @@ def main(argv=None):
     logger.info("启动 command=%s target=%s log=%s", args.command, args.target or "已保存设置", logfile)
     try:
         if args.command == "gui":
-            import tkinter as tk
-            import tool_update
-            from switcher_icon import WM_CLASS
-            install = Path(__file__).absolute().parent
-            with tool_update.instance_lock(install):
-                tool_update.recover_update(install)
-                from app import Application
-                root = tk.Tk(className=WM_CLASS)
-                root.report_callback_exception = lambda typ, value, tb: logger.error("界面回调异常", exc_info=(typ, value, tb))
-                Application(root, engineer=args.engineer, updates=True)
-                root.mainloop()
-            return 0
+            command = [sys.executable, str(Path(__file__).resolve().parents[1] / "workbench.py"), "gui"]
+            if args.target:
+                command += ["--publish-dir", args.target]
+            os.execv(sys.executable, command)
         if args.command == "competition":
             raise SyncError("旧 competition 命令已停用。请运行 config list，再用 config apply --version 版本名称。")
         if args.command == "self-test":

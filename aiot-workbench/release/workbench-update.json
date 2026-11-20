@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "product": "aiot-workbench",
-  "version": "2026.11.20.1",
+  "version": "2026.11.20.2",
   "url": "https://gitee.com/potper/odoiotassets/raw/main/aiot-workbench/release/aiot-workbench.zip",
   "package_file": "aiot-workbench.zip",
-  "size": 35499622,
-  "sha256": "4bdd29aff10218bbc6f6b475a98f9a74c76df833e73557dbedadac40abfecc9d",
-  "notes": "启动器、工程师面板、配置显示规则和整包程序更新。"
+  "size": 35460729,
+  "sha256": "3100f89ae2be060b1ac3dbe4920343f2ffa91017264d18eda2e61c94f2d4fef8",
+  "notes": "统一共享后台；同一仓库目录更新工作台及 publish；修复独立会话模块路径。"
 }

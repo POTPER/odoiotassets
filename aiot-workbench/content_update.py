@@ -10,14 +10,16 @@ import threading
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT / "engineer"))
+sys.path.insert(0, str(ROOT))
+from bootstrap import configure
+configure()
 
 
 def emit(kind, **data):
     print(json.dumps(dict(kind=kind, **data), ensure_ascii=False), flush=True)
 
 
-def execute(settings, offline=False, approve=None, send=emit, cancel=None):
+def execute(settings, offline=False, approve=None, send=emit, cancel=None, source_descriptor=None):
     from core import Engine, read_json, check_cancel, SyncError
     from switcher import profiles, selected
     from file_formats import describe
@@ -28,7 +30,13 @@ def execute(settings, offline=False, approve=None, send=emit, cancel=None):
     engine.startup_recover()
     args = SimpleNamespace(offline=offline, local_catalog=config.get("local_catalog"),
         repo=None, branch=None, profile=config.get("home_update_profile", "rk"), version=None)
-    items = profiles(args, config, engine)
+    if source_descriptor is not None and not offline:
+        from core import Source
+        from repository import remote_profiles, validate_presets, DEFAULT_PROFILES
+        source = Source(**source_descriptor)
+        items = remote_profiles(source, validate_presets(config.get("directory_profiles", DEFAULT_PROFILES)))
+    else:
+        items = profiles(args, config, engine)
     if offline:
         # A user-facing offline update uses the latest completely cached manifest.
         matches = [item for item in items if item["manifest"]["id"] == args.profile]
@@ -70,6 +78,7 @@ def main():
     parser.add_argument("--settings", required=True)
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--auto-apply", action="store_true", help="由工作台统一更新流程自动确认严格更新")
+    parser.add_argument("--source-json", help="统一更新流程固定的仓库提交")
     options = parser.parse_args()
     sys.path.append(str(ROOT / "launcher"))
     from launcher_process import set_process_role
@@ -102,7 +111,8 @@ def main():
         threading.Thread(target=watch, daemon=True).start()
         return True
     try:
-        execute(options.settings, options.offline, approve, cancel=cancel)
+        execute(options.settings, options.offline, approve, cancel=cancel,
+                source_descriptor=json.loads(options.source_json) if options.source_json else None)
         return 0
     except Exception as exc:
         logging.exception("严格更新未完成")

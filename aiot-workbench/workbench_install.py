@@ -22,7 +22,8 @@ def install_workbench(publish, config_dir=None, applications=None, desktop_dir=N
     settings = config / "settings.json"
     data = read_settings(settings)
     data["target"] = data["publish_dir"]
-    data.setdefault("program_update_url", tool_update.DEFAULT_UPDATE_URL)
+    data.setdefault("workbench_directory", "aiot-workbench")
+    data.pop("program_update_url", None)
     write_settings(settings, data)
     interpreters = install_interpreters(config)
     state = tool_update.update_state(ROOT)

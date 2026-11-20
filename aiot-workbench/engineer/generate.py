@@ -1,11 +1,16 @@
 """Build a self-contained catalog from a complete publish directory."""
 import argparse
+import sys
 import json
 import os
 import re
 import shutil
 import stat
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from compat import is_relative_to
 
 from core import SyncError, asset_file, atomic_json, digest, managed, read_json, relative_path, scan, validate_catalog, validate_manifest

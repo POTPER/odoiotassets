@@ -11,6 +11,10 @@ import traceback
 import time
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from launcher_runtime import LauncherController, config_directory, load_settings
 from launcher_preferences import preferences, save_preferences, open_results_directory
 from core import SyncError

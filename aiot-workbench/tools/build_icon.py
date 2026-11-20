@@ -41,9 +41,11 @@ def build():
     master.save(ROOT / "launcher/assets/icon.png")
     master.save(ROOT / "launcher/assets/sidebar-icon.png")
     icons = ROOT / "engineer/icons"
-    for size in (16, 32, 48, 64, 128, 256):
+    for size in (16, 24, 32, 48, 64, 128, 256, 512):
         master.resize((size, size), resampling).save(icons / ("publish-switcher-{}.png".format(size)))
     master.save(assets / "workbench.ico", sizes=[(s, s) for s in (16, 32, 48, 64, 128, 256)])
+    (icons / "publish-switcher.svg").write_text(svg + "\n", encoding="utf-8")
+    (icons / "publish-switcher.ico").write_bytes((assets / "workbench.ico").read_bytes())
     print(assets / "workbench-icon.png")
 
 

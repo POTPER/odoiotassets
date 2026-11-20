@@ -27,7 +27,6 @@ from switcher_style import COLORS, NavButton, StatusBadge, apply_theme, rounded,
 from switcher_icon import WM_CLASS, load_icons
 from file_formats import DEFAULT_EXTENSIONS, normalize_extensions, inventory, describe as describe_formats, label
 from version import VERSION
-import tool_update
 
 
 CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "publish-switcher" / "settings.json"
@@ -36,6 +35,8 @@ DEMO_RESULTS_EMPTY = "运行模块后，这里会显示状态、耗时和退出�
 
 class Application:
     def __init__(self, root, engineer=True, updates=False):
+        if updates:
+            raise SyncError("程序更新统一由工作台主页管理，请运行 workbench.py gui。")
         self.root = root
         self.engineer_mode = engineer
         self.updates_enabled = updates
@@ -46,7 +47,7 @@ class Application:
         self.logger = logging.getLogger("publish-switcher")
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
-        root.title("Publish Switcher · 配置与资源管理")
+        root.title("AIoT 工作台 · 工程师面板")
         self.icons = load_icons(root)
         root.geometry("{}x{}".format(min(1240, max(900, root.winfo_screenwidth() - 80)),
                                           min(780, max(640, root.winfo_screenheight() - 100))))
@@ -94,10 +95,6 @@ class Application:
             config = {}
         self.sync_permissions = tk.BooleanVar(value=config.get("sync_permissions") is True)
         self.update_mode.set(config.get("update_mode") if config.get("update_mode") in ("incremental", "strict") else "incremental")
-        self.program_source = tk.StringVar(value=config.get("program_update_url", tool_update.DEFAULT_UPDATE_URL))
-        self.program_status = tk.StringVar(value="启动时将检查 Switcher 版本。")
-        self.program_notes = tk.StringVar(value="")
-        self.program_version_text = tk.StringVar(value="当前版本 " + VERSION)
         try:
             self.file_extensions = normalize_extensions(config.get("file_extensions"))
         except ValueError:
@@ -706,138 +703,8 @@ class Application:
                   wraplength=800).pack(anchor="w", pady=12)
 
     def build_program_page(self):
-        page = self.program_page
-        page.columnconfigure(0, weight=1)
-        ttk.Label(page, text="Switcher 程序更新", style="Title.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 10))
-        ttk.Label(page, textvariable=self.program_version_text).grid(row=1, column=0, sticky="w", pady=4)
-        ttk.Label(page, textvariable=self.program_status, wraplength=650).grid(row=2, column=0, sticky="w", pady=8)
-        actions = ttk.Frame(page)
-        actions.grid(row=3, column=0, sticky="w", pady=8)
-        self.program_check_button = ttk.Button(actions, text="检查更新 / 重试", command=self.check_program_update)
-        self.program_check_button.pack(side="left")
-        self.program_apply_button = ttk.Button(actions, text="更新并重启", style="Primary.TButton",
-                                                command=self.apply_program_update, state="disabled")
-        self.program_apply_button.pack(side="left", padx=8)
-        self.program_offline_button = ttk.Button(actions, text="导入离线更新", command=self.import_program_update)
-        self.program_offline_button.pack(side="left")
-        ttk.Label(page, textvariable=self.program_notes, wraplength=650, style="Muted.TLabel",
-                  justify="left").grid(row=4, column=0, sticky="nw", pady=12)
-
-    def save_program_source(self):
-        if self.busy:
-            return
-        try:
-            address = tool_update.https_url(self.program_source.get())
-            data = read_json(CONFIG) if CONFIG.exists() else {}
-            data["program_update_url"] = address
-            atomic_json(CONFIG, data)
-        except (ValueError, OSError, tool_update.UpdateError) as exc:
-            messagebox.showerror("更新源未保存", str(exc))
-            return
-        self.program_source.set(address)
-        self.program_checked = False
-        self.program_release = None
-        self.program_status.set("更新源已保存，请检查程序版本。")
-        self.configure_access()
-        self.update_ready()
-
-    def check_program_update(self):
-        if getattr(self, "program_check_id", None):
-            self.root.after_cancel(self.program_check_id)
-            self.program_check_id = None
-        if self.program_checking or self.busy:
-            return
-        self.program_checking = True
-        self.program_status.set("正在检查 Switcher 版本…")
-        address = self.program_source.get().strip()
-        def worker():
-            try:
-                value = tool_update.check_release(address, self.install_directory, VERSION)
-                self.events.put(("program_check", (address, value, None)))
-            except Exception as exc:
-                self.logger.exception("Switcher 程序版本检查失败")
-                self.events.put(("program_check", (address, None, str(exc))))
-        threading.Thread(target=worker, daemon=True).start()
-        self.update_ready()
-
-    def program_check_finished(self, data):
-        address, value, error = data
-        self.program_checking = False
-        if address != self.program_source.get().strip():
-            self.check_program_update()
-            return
-        if error:
-            self.program_status.set("版本检查未完成，请重试或导入离线更新。")
-            self.program_notes.set(error)
-            self.program_checked = False
-        else:
-            release, newer = value
-            self.program_checked = not newer
-            self.program_release = release if newer else None
-            self.program_notes.set(release["notes"])
-            if newer:
-                self.program_version_text.set("当前 {}    最新 {}".format(VERSION, release["version"]))
-                self.program_status.set("发现新版本。请更新并重启后使用。")
-            else:
-                self.program_status.set("已确认当前版本，可以使用。")
-        self.configure_access()
-        self.update_ready()
-        if self.program_checked:
-            self.program_ready()
-
-    def program_ready(self):
-        self.configure_access()
-        if self.target.get():
-            if not self.engine:
-                self.connect()
-            if not self.engineer_mode:
-                self.pages.select(self.config_page)
-        elif not self.engineer_mode:
-            self.program_status.set("程序版本已确认。设备尚未配置，请联系实施人员。")
-
-    def apply_program_update(self):
-        if not self.program_release or self.busy:
-            return
-        release = dict(self.program_release)
-        self.program_status.set("正在下载、校验并准备新版程序…")
-        count = [0]
-        def progress(size):
-            count[0] += size
-            self.events.put(("log", "程序下载 {:.1f} / {:.1f} MiB".format(count[0] / 2**20, release["size"] / 2**20)))
-        self.run(lambda: tool_update.prepare_online(self.install_directory, release, VERSION, self.cancel, progress),
-                 self.program_prepared, system_update=True)
-
-    def import_program_update(self):
-        if self.busy:
-            return
-        selected = filedialog.askopenfilename(parent=self.root, title="选择与安装包放在一起的 switcher-update.json",
-                                              filetypes=[("程序发布信息", "*.json")])
-        if not selected:
-            return
-        def work():
-            release = tool_update.validate_release(tool_update.read_json(selected))
-            record = tool_update.prepare_offline(self.install_directory, selected, VERSION)
-            return release, record
-        def done(result):
-            release, record = result
-            if tool_update.version_number(release["version"]) == tool_update.version_number(VERSION):
-                tool_update.recover_update(self.install_directory)
-                self.program_release = None
-                self.program_checked = True
-                self.program_status.set("已通过离线安装包验证当前版本，可以使用。")
-                self.program_ready()
-            else:
-                self.program_prepared(record)
-        self.run(work, done, system_update=True)
-
-    def program_prepared(self, record):
-        try:
-            tool_update.launch_update_helper(self.install_directory, self.engineer_mode)
-        except Exception as exc:
-            tool_update.recover_update(self.install_directory)
-            messagebox.showerror("更新助手未启动", str(exc))
-            return
-        self.root.destroy()
+        ttk.Label(self.program_page, text="AIoT Workbench", style="Title.TLabel").pack(anchor="w", pady=12)
+        ttk.Label(self.program_page, text="程序与 publish 更新统一由工作台主页管理。").pack(anchor="w")
 
     def build_settings_page(self):
         page = self.settings_page
@@ -860,13 +727,6 @@ class Application:
         self.button(actions, "方案目录设置（Jetson / RK 等）", self.edit_presets).pack(side="left", padx=8)
         if self.updates_enabled:
             ttk.Button(actions, text="返回用户界面", command=self.toggle_engineer).pack(side="left")
-        if self.updates_enabled:
-            program = ttk.LabelFrame(page, text="Switcher 程序更新源", padding=8)
-            program.pack(fill="x")
-            program.columnconfigure(0, weight=1)
-            self.controls.append(ttk.Entry(program, textvariable=self.program_source))
-            self.controls[-1].grid(row=0, column=0, sticky="ew")
-            self.button(program, "保存更新源", self.save_program_source).grid(row=0, column=1, padx=(6, 0))
         ttk.Label(page, text="清单缓存保存方案的文件列表；实际资源文件经下载校验后单独缓存。\n是否支持离线更新，以所选方案需要的文件是否已完整缓存为准。",
                   wraplength=800).pack(anchor="w", pady=8)
         about = ttk.LabelFrame(page, text="关于工具", padding=12)
@@ -962,9 +822,6 @@ class Application:
                     self.status.set(data)
                 elif kind == "demo_log":
                     self.append_demo(data)
-                elif kind == "program_check":
-                    self.program_check_finished(data)
-                    continue
                 elif kind == "demo_progress":
                     self.demo_progress_event(data)
                 elif kind == "demo_state":

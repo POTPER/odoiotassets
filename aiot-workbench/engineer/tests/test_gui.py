@@ -58,69 +58,7 @@ class GuiTests(unittest.TestCase):
         names = self.root.tk.splitlist(self.root.tk.call("image", "names"))
         self.assertTrue(all(str(image) in names for image in self.ui.icons.values()))
 
-    def test_user_mode_requires_version_check_and_engineer_shortcut_controls_parameters(self):
-        import json
-        with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
-            base = Path(directory)
-            window = tk.Toplevel(self.root)
-            window.withdraw()
-            release = {"version": app.VERSION, "notes": "checked"}
-            settings = base / "settings.json"
-            settings.write_text(json.dumps({"custom_setting": True}), encoding="utf-8")
-            with patch.object(app, "CONFIG", settings), patch("tool_update.check_release", return_value=(release, False)):
-                ui = app.Application(window, engineer=False, updates=True)
-                window.after_cancel(ui.program_check_id)
-                ui.program_check_id = None
-                self.assertEqual(ui.pages.select(), str(ui.program_page))
-                self.assertEqual(ui.pages.tab(ui.config_page, "state"), "hidden")
-                called = []
-                ui.run(lambda: called.append(True), lambda value: None)
-                self.assertFalse(called)
-                ui.program_check_finished((ui.program_source.get(), (release, False), None))
-                self.assertEqual(ui.pages.tab(ui.config_page, "state"), "normal")
-                self.assertEqual(ui.pages.tab(ui.settings_page, "state"), "hidden")
-                self.assertEqual(ui.location_bar.winfo_manager(), "")
-                self.assertEqual(ui.diff_tree.cget("displaycolumns"), ("status", "path"))
-                ui.toggle_engineer()
-                self.assertEqual(ui.pages.select(), str(ui.settings_page))
-                self.assertEqual(ui.location_bar.winfo_manager(), "pack")
-                ui.program_source.set("https://example.org/new-update.json")
-                ui.save_program_source()
-                self.assertFalse(ui.program_checked)
-                self.assertTrue(json.loads(settings.read_text())["custom_setting"])
-                self.assertEqual(json.loads(settings.read_text())["program_update_url"], ui.program_source.get())
-                target = base / "publish"
-                target.mkdir()
-                ui.target.set(str(target))
-                ui.update_mode.set("strict")
-                ui.connect()
-                deadline = time.monotonic() + 6
-                while ui.busy and time.monotonic() < deadline:
-                    self.root.update()
-                    time.sleep(.01)
-                self.assertFalse(ui.busy)
-                saved = json.loads(settings.read_text())
-                self.assertEqual(saved["update_mode"], "strict")
-                self.assertEqual(saved["program_update_url"], ui.program_source.get())
-                ui.toggle_engineer()
-                self.assertEqual(ui.pages.select(), str(ui.program_page))
-                self.assertEqual(ui.pages.tab(ui.tools_page, "state"), "hidden")
-            window.destroy()
 
-    def test_program_new_version_and_check_failure_keep_user_operations_blocked(self):
-        window = tk.Toplevel(self.root)
-        window.withdraw()
-        with patch.object(app, "CONFIG", Path(__file__).parent / "nonexistent-settings.json"):
-            ui = app.Application(window, engineer=False, updates=True)
-        release = {"version": "2099.1", "notes": "Required release"}
-        ui.program_check_finished((ui.program_source.get(), (release, True), None))
-        self.assertFalse(ui.program_checked)
-        self.assertEqual(ui.pages.tab(ui.demo_page, "state"), "hidden")
-        self.assertEqual(str(ui.program_apply_button.cget("state")), "normal")
-        ui.program_check_finished((ui.program_source.get(), None, "network unavailable"))
-        self.assertFalse(ui.program_checked)
-        self.assertIn("network unavailable", ui.program_notes.get())
-        window.destroy()
 
     def test_user_config_visibility_alias_and_engineer_editor(self):
         from test_config_versions import write_bundle

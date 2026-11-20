@@ -14,8 +14,12 @@ import sys
 import threading
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from core import Engine, SyncError, assert_stopped
-from diagnostics import default_log_path
+from diagnostics import default_log_path, settings_path
 
 
 class DemoError(SyncError):
@@ -518,10 +522,10 @@ def find_publish(value):
     elif (Path.cwd() / "TrainTaskInfo.json").is_file():
         path = Path.cwd().resolve()
     else:
-        settings = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "publish-switcher/settings.json"
+        settings = settings_path()
         try:
             config = json.loads(settings.read_text(encoding="utf-8-sig"))
-            target = config.get("target")
+            target = config.get("publish_dir") or config.get("target")
             if not isinstance(target, str) or not target.strip():
                 raise ValueError("未设置 target")
             path = Path(target).expanduser().resolve()

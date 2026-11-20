@@ -310,11 +310,11 @@ def recover_transaction(engine):
     return True
 
 
-def activate_version(engine, version, expected_snapshot=None, log=lambda message: None):
+def activate_version(engine, version, expected_snapshot=None, log=lambda message: None, user_only=False):
     engine.startup_recover()
     with engine.lock():
         engine.recover()
-        return activate_version_locked(engine, version, expected_snapshot, log)
+        return activate_version_locked(engine, version, expected_snapshot, log, user_only=user_only)
 
 
 def activate_version_locked(engine, version, expected_snapshot=None, log=lambda message: None, cleanup_task_files=False, user_only=False):

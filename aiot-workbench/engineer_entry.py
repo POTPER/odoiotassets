@@ -7,7 +7,9 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT / "engineer"))
+sys.path.insert(0, str(ROOT))
+from bootstrap import configure
+configure()
 
 
 def main():
@@ -29,6 +31,8 @@ def main():
         settings = Path(args.pop(0))
         data = read_json(settings)
         target = data["publish_dir"]
+    if args and args[0] == "gui":
+        args = ["engineer"]
     data.update(target=target, publish_dir=target)
     import tool_update
     from contextlib import nullcontext
@@ -59,8 +63,9 @@ def main():
                     self.home_profile = tk.StringVar(value=data.get("home_update_profile", "rk"))
                     profile = ttk.Combobox(options, textvariable=self.home_profile, values=[p["id"] for p in self.presets])
                     profile.grid(row=0, column=1, padx=10, sticky="ew")
-                    ttk.Label(options, text="工作台自身更新源").grid(row=1, column=0, sticky="w", pady=8)
-                    source = ttk.Entry(options, textvariable=self.program_source, width=60)
+                    ttk.Label(options, text="工作台仓库内目录").grid(row=1, column=0, sticky="w", pady=8)
+                    self.program_directory = tk.StringVar(value=data.get("workbench_directory", "aiot-workbench"))
+                    source = ttk.Entry(options, textvariable=self.program_directory, width=60)
                     source.grid(row=1, column=1, sticky="ew", padx=10)
                     options.columnconfigure(1, weight=1)
                     self.controls.extend([profile, source])
@@ -69,11 +74,13 @@ def main():
                             identity = self.home_profile.get().strip()
                             if not re.fullmatch(r"[A-Za-z0-9_-]+", identity):
                                 raise ValueError("方案 ID 只允许字母、数字、下划线和短横线。")
-                            address = tool_update.https_url(self.program_source.get())
+                            from core import relative_path
+                            directory = relative_path(self.program_directory.get().strip())
                             saved = read_json(settings)
-                            saved.update(home_update_profile=identity, program_update_url=address)
+                            saved.pop("program_update_url", None)
+                            saved.update(home_update_profile=identity, workbench_directory=directory)
                             atomic_json(settings, saved)
-                            self.status.set("主页更新方案和工作台更新源已保存。")
+                            self.status.set("更新设置已保存：程序和资源共用连接设置中的仓库。")
                         except Exception as exc:
                             messagebox.showerror("设置未保存", str(exc), parent=self.root)
                     self.button(options, "保存主页更新设置", save).grid(row=2, column=1, sticky="w", padx=10, pady=8)

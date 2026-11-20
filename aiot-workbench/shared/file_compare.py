@@ -146,8 +146,8 @@ def _inspect(path, cancel=None):
 def diagnose_file(engine, manifest, source, path, offline=False, cancel=None, sync_permissions=False):
     validate_manifest(manifest)
     relative_path(path)
-    if not managed(path):
-        raise SyncError("仅诊断 .py / .json 文件。")
+    if not engine.manages(path):
+        raise SyncError("该文件格式未勾选，请先在同步格式中选择。")
     entry = next((e for e in manifest["entries"] if e["path"] == path and e["type"] == "file"), None)
     with engine.lock():
         if engine.journal.exists() or (engine.state / "config-transaction.json").exists() or (engine.state / "assets-transaction.json").exists():
@@ -230,7 +230,7 @@ def format_report(report, include_diff=True, color=False):
 
 
 def comparison_self_test(cancel=None):
-    fixtures = Path(__file__).parent / "comparison-samples"
+    fixtures = Path(__file__).resolve().parents[1] / "engineer/comparison-samples"
     with tempfile.TemporaryDirectory(prefix="publish-switcher-self-test-") as directory:
         base = Path(directory)
         target, remote = base / "publish", base / "remote"

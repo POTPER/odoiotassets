@@ -9,6 +9,10 @@ import sys
 import threading
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from launcher_runtime import SessionController, load_settings
 from launcher_process import set_process_role
 from launcher_diagnostics import LAUNCHER_VERSION, doctor
@@ -122,9 +126,10 @@ def verified_parent():
         exe = os.readlink(proc / 'exe')
         args = (proc / 'cmdline').read_bytes().decode().split('\0')
         cwd = os.readlink(proc / 'cwd')
-        gui = Path(__file__).with_name('aiot_launcher.py').resolve()
+        gui_entries = {Path(__file__).with_name('aiot_launcher.py').resolve(),
+                       Path(__file__).resolve().parents[1] / 'workbench.py'}
         if Path(exe).name in ('bash', 'sh', 'zsh') or any(
-                Path(cwd, arg).resolve() == gui for arg in args if arg and not arg.startswith('-')):
+                Path(cwd, arg).resolve() in gui_entries for arg in args if arg and not arg.startswith('-')):
             return (pid,)
     except (OSError, UnicodeError):
         pass

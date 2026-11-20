@@ -70,7 +70,7 @@ def prepare_overlay(engine, archive):
         # Do not resolve symlinks: venv/bin/python must retain its venv identity.
         real = os.path.abspath(real)
         wrapper = folder / ("python-" + hashlib.sha256(real.encode()).hexdigest()[:20])
-        command = [sys.executable, str(Path(__file__).with_name("collector.py")),
+        command = [sys.executable, str(Path(__file__).resolve().parents[1] / "launcher/collector.py"),
                    "--publish-dir", str(engine.target), "--archive-dir", str(archive), "--python", real, "--"]
         content = "#!/usr/bin/env bash\nexec " + " ".join(shlex.quote(arg) for arg in command) + ' "$@"\n'
         if wrapper.is_symlink():

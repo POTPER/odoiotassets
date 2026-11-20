@@ -138,13 +138,9 @@ class ProgramUpdateTests(unittest.TestCase):
         self.assertIn("original-launch-restored", result.stdout)
         self.assertTrue((self.install / "old.py").exists())
 
-    def test_remote_check_persists_mandatory_version_and_blocks_old_offline_package(self):
+    def test_known_mandatory_version_blocks_old_offline_package(self):
         release = self.release()
-        (self.base / "update.json").write_text(json.dumps(release), encoding="utf-8")
-        with patch("tool_update.remote_file", return_value=(Source(local=self.base), "update.json")):
-            actual, newer = updater.check_release("https://example.org/update.json", self.install, "2026.11.20.1")
-        self.assertTrue(newer)
-        self.assertEqual(actual["version"], self.version)
+        updater.save_json(updater.update_state(self.install) / "required.json", release)
         self.version = "2026.11.20.2"
         with self.assertRaisesRegex(updater.UpdateError, "低于已知"):
             self.prepare(self.release())

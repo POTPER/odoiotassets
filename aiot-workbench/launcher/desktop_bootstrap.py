@@ -8,6 +8,10 @@ import subprocess
 import sys
 import traceback
 import signal
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from launcher_process import interpreter_for, set_process_role
 
 

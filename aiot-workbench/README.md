@@ -1,6 +1,6 @@
 # AIoT 工作台（aiot-workbench）
 
-独立整合原 AIoT Launcher 与 Publish Switcher，面向 Ubuntu ARM64 桌面和 Python 3.8.10。用户只接触启动、停止、成果与程序更新；按 **Ctrl+Shift+F12** 打开工程师面板。
+独立整合原 AIoT Launcher 与 Publish Switcher，面向 Ubuntu ARM64 桌面和 Python 3.8.10。同步、配置版本管理、内容比较、下载校验和事务恢复统一使用 `shared/` 的一套实现。用户只接触启动、停止、成果与程序更新；按 **Ctrl+Shift+F12** 打开工程师面板。
 
 ## 首次安装
 
@@ -46,7 +46,7 @@ bash install.sh --offline /home/ubuntu/linux-arm64/publish
 工程师设置包括资源仓库、分支、方案目录、同步格式和权限策略；“工作台主页更新设置”单独设置：
 
 - 主页更新方案 ID：默认 `rk`，可改 `jetson` 或后续增加的方案 ID。
-- 工作台自身更新源：默认 `https://gitee.com/potper/odoiotassets/raw/main/aiot-workbench/release/workbench-update.json`。
+- 工作台仓库内目录：默认 `aiot-workbench`。与 publish 共用连接设置中的仓库地址与分支；默认仓库为 `https://gitee.com/potper/odoiotassets`，不再单独配置程序更新 URL。
 
 **严格更新范围仍由已勾选的文件格式决定**。默认 `.py`、`.json`、`.ttf`；可勾选 `.rknn` 等格式。严格更新替换差异文件、删除该范围内的本地多余文件，包括根目录生效 JSON 和所选格式的运行结果。未选格式保留；默认保留已有文件权限，新文件使用仓库权限。Assets 独立比较/增量下载、文本差异诊断、权限预设和 Demo 队列仍在工程师面板。
 
@@ -74,30 +74,36 @@ python3 workbench.py doctor
 
 CLI 无需 Tkinter。`~/.config/aiot-workbench/settings.json` 保存部署设置；`logs/` 内有 `workbench.log`、`engineer.log`、`content-update.log`、`engineer-startup.log` 和桌面启动日志。资源缓存与事务备份继续使用 publish 同级 `.publish-switcher-<目录名>`，以保持兼容。
 
-## 发布程序更新
+## 一个仓库，两个更新目录
 
-修改根目录 `version.py`，生成一个当前版本的完整包：
+默认仓库的结构为：
 
-```bash
-python3 tools/build_update.py
+```text
+odoiotassets/
+  aiot-workbench/   工作台完整源文件，含 version.py、bootstrap.py、shared、launcher、engineer
+  publish_RK/       RK 的 publish 资源
+  publish-switcher/ 原独立工具，本工作台不从这里更新自身
 ```
 
-只维护 `release/aiot-workbench.zip` 和配套 `release/workbench-update.json`。必须将二者实际发布后设备才能下载；本地构建不会上传仓库。ZIP 不递归包含 release、临时测试数据或缓存。ZIP 包内包含完整程序与离线依赖，不能只上传一个 Python 文件。
+点击程序更新后，先读取同一次固定提交的目录树：`aiot-workbench` 用于更新工作台，`publish_RK` 等方案用于严格更新设备的 publish。两部分复用同一个同步引擎、文件哈希比较和下载校验。工作台的源文件与资源都直接从该仓库读取，**在线更新不需要 ZIP，也不需要额外的发布 JSON**。
 
-Git 默认忽略 ZIP 和 `.deb`；若按目录发布完整包，需显式加入：
+发布时上传完整的 `aiot-workbench` 源码目录并提交即可；建议同时递增 `aiot-workbench/version.py` 的 VERSION。相同版本号下的代码差异也能检测和修复。不会降级较新的本机程序。目录树被截断、文件不完整、校验失败时阻止替换。
 
-```bash
-git add -f aiot-workbench/release/aiot-workbench.zip
-git add aiot-workbench/release/workbench-update.json
-```
+本次上传请同时提交旧 `launcher/core.py`、`engineer/core.py` 等私有副本的删除，保持仓库整洁。即使远端遗留这些旧副本，更新器也会忽略它们，以 shared 为准，并在设备更新时清理对应的本地旧代码。
 
-Gitee 对大文件 raw/API 下载可能有限制。工程师可将完整 ZIP 放到 GitHub Releases 或支持匿名 HTTPS 的对象存储，再用 `python3 tools/build_update.py --url https://实际下载地址/aiot-workbench.zip` 生成对应发布信息。设备只需访问发布信息中的下载地址，无需登录；仓库用于保存小型发布信息。下载均校验大小与 SHA-256。
+工作台在线同步其运行所需的全部格式，包括 Python、脚本、图标、背景等。`release/`、`debs/`、测试和缓存不从仓库下载；本机离线依赖保留。已相同的文件复用，只下载变化的文件。publish 的更新范围仍由工程师勾选格式决定。
 
-整包程序先下载并验证，再执行 publish 严格更新，最后切换工作台自身。publish 失败会取消已准备的启动器更新；下载失败或取消不应用部分文件。publish 目录更新与工作台自身更新分别有事务日志和回滚，两目录不是同一个原子事务：若 publish 完成后工作台切换失败，publish 保留已完成版本，工作台恢复旧版并要求重试。备份和更新助手保存在安装目录外。
+先准备并校验新版工作台目录，再严格更新 publish，最后退出工作台、备份并替换自身。publish 失败会撤销已准备的工作台更新；如果工作台切换失败，则恢复旧程序。两个目录各有恢复记录，不构成跨目录原子事务；publish 已完成而工作台切换失败时，重试即可。设置、日志、缓存和备份不存放在被更新目录内。
+
+## 安装包和旧版升级
+
+`python3 tools/build_update.py` 仍生成一个 `release/aiot-workbench.zip` 和配套 `workbench-update.json`，用于首次分发、U 盘安装和离线验证。它们不是在线同步的前提。完整包保留 123 个 ARM64 离线依赖。
+
+从 2026.11.20.1 或更早整合版升级到当前版本，请先退出程序，用新安装包**覆盖整个 aiot-workbench 目录**，然后运行 `bash install.sh`。公共模块已迁移到 shared，不能只替换 session_cli.py。原外部设置和 publish 资源保留；以后通过主页“程序更新”从仓库自身目录升级。
 
 ## 开发与验收
 
-`launcher/` 和 `engineer/` 分别保留原后台，工程师窗口使用独立进程以防同名模块和 Tk 主题冲突。统一安装器沿用原会话脚本与进程身份保护，不依赖旧项目文件夹。
+`shared/` 是唯一的同步、比较和配置事务后台；`launcher/` 保留启动停止、成果与会话控制；`engineer/` 保留维护界面和 Demo。维护窗口仍使用独立进程，防止 Tk 主题和长任务干扰用户主页。所有独立入口显式加载 bootstrap，不依赖 PYTHONPATH 或当前工作目录。
 
 ```bash
 python3 tools/test.py all

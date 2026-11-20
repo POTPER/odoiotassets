@@ -111,10 +111,6 @@ class WorkbenchWindow(LauncherWindow):
             messagebox.showinfo("暂时无法打开工程师面板", str(exc), parent=self.root)
         return "break"
 
-    def source_url(self):
-        data = read_settings(self.settings_path, default=self.settings)
-        return data.get("program_update_url", tool_update.DEFAULT_UPDATE_URL)
-
     def job(self, function, kind):
         if self.update_busy:
             return
@@ -134,7 +130,7 @@ class WorkbenchWindow(LauncherWindow):
             return
         self.update_checked = False
         self.update_message = "正在检查工作台版本…"
-        self.job(lambda: tool_update.check_release(self.source_url(), ROOT, VERSION), "checked")
+        self.job(lambda: tool_update.check_repository(self.settings_path, ROOT, VERSION), "checked")
 
     def request_update(self):
         try:
@@ -223,13 +219,13 @@ class WorkbenchWindow(LauncherWindow):
                     self.update_detail = error
                 elif kind == "checked":
                     release, newer = value
-                    self.release = release if newer else None
+                    self.release = release
                     self.update_checked = not newer
                     self.update_message = "发现新版本 {}，更新后方可使用。".format(release["version"]) if newer else "当前版本已确认，可以使用。"
                     self.update_detail = release["notes"]
                 elif kind == "combined":
                     record = value["program_record"]
-                    if record and record["version"] != VERSION:
+                    if record and (record.get("replace_program") or record["version"] != VERSION):
                         try:
                             self.safe_to_maintain()
                             tool_update.launch_update_helper(ROOT)

@@ -16,12 +16,12 @@ import urllib.parse
 import uuid
 import zipfile
 
-DEFAULT_UPDATE_URL = "https://gitee.com/potper/odoiotassets/raw/main/aiot-workbench/release/workbench-update.json"
 MAX_PACKAGE = 256 * 1024 * 1024
 REQUIRED_FILES = ("workbench.py", "workbench_ui.py", "workbench_paths.py", "workbench_install.py",
                   "content_update.py", "workbench_updates.py", "engineer_entry.py",
-                  "launcher/aiot_launcher.py", "launcher/core.py", "launcher/launcher_runtime.py",
-                  "engineer/app.py", "engineer/core.py", "version.py", "tool_update.py", "install.sh")
+                  "launcher/aiot_launcher.py", "launcher/launcher_runtime.py", "launcher/session_cli.py",
+                  "engineer/app.py", "bootstrap.py", "shared/core.py", "shared/config_versions.py",
+                  "shared/program_sync.py", "version.py", "tool_update.py", "install.sh")
 
 
 class UpdateError(RuntimeError):
@@ -139,15 +139,22 @@ def remote_file(url):
     return Source(), url
 
 
-def check_release(url, install, current):
-    source, location = remote_file(url)
-    release = validate_release(json.loads(source.metadata(location).decode("utf-8-sig")))
+def check_repository(settings, install, current):
+    from program_sync import repository_release, compare_release
+    config = read_json(settings) if Path(settings).exists() else {}
+    release = repository_release(config)
     state = update_state(install)
     required = state / "required.json"
     if required.exists() and version_number(release["version"]) < version_number(read_json(required)["version"]):
-        raise UpdateError("更新源返回的版本低于此前检查到的版本，请联系实施人员。")
+        raise UpdateError("仓库版本低于已知版本，请检查仓库分支。")
     save_json(required, release)
-    return release, version_number(release["version"]) > version_number(current)
+    # Local engineering builds can be newer than the public folder, never downgrade them.
+    older = version_number(release["version"]) < version_number(current)
+    preview = None if older else compare_release(install, state, release)
+    release["changes"] = preview["changes"] if preview else []
+    if preview and preview["blocker"]:
+        raise UpdateError(preview["blocker"])
+    return release, not older and (bool(release["changes"]) or version_number(release["version"]) > version_number(current))
 
 
 def package_version(path):
@@ -233,11 +240,47 @@ def prepare_package(install, release, package, current):
 
 
 def prepare_online(install, release, current, cancel, progress):
+    if release.get("kind") == "repository":
+        return prepare_repository(install, release, current, cancel, progress)
     state = update_state(install)
     package = state / "download.zip"
     source, location = remote_file(release["url"])
     source.download(location, package, release["size"], release["sha256"], cancel, progress)
     return prepare_package(install, release, package, current)
+
+
+def prepare_repository(install, release, current, cancel=None, progress=lambda size: None):
+    from program_sync import prepare_release
+    if version_number(release["version"]) < version_number(current):
+        return None
+    state = update_state(install)
+    if (state / "pending.json").exists():
+        raise UpdateError("存在未完成的程序更新，请重新启动工作台。")
+    required = state / "required.json"
+    if required.exists() and version_number(release["version"]) < version_number(read_json(required)["version"]):
+        raise UpdateError("检查后发现更高版本，请重新检查。")
+    stage = prepare_release(install, state, release, cancel)
+    if stage is None:
+        return None
+    try:
+        if any(not (stage / name).is_file() or (stage / name).stat().st_size == 0 for name in REQUIRED_FILES):
+            raise UpdateError("仓库的 aiot-workbench 目录缺少完整程序文件。")
+        for module in stage.rglob("*.py"):
+            if not set(module.relative_to(stage).parts) & {"debs", "tests", ".tmp", "__pycache__", "release"}:
+                compile(module.read_bytes(), str(module), "exec")
+        if package_version(stage / "version.py") != release["version"]:
+            raise UpdateError("工作台目录版本校验失败。")
+        token = uuid.uuid4().hex
+        ready = state / ("stage-" + token)
+        os.replace(stage, ready)
+        stage = ready
+        record = {"phase": "prepared", "stage": stage.name, "backup": "backup-" + token,
+                  "version": release["version"], "commit": release["commit"], "replace_program": True}
+        save_json(state / "pending.json", record)
+        return record
+    except BaseException:
+        shutil.rmtree(stage)
+        raise
 
 
 def prepare_offline(install, manifest, current):

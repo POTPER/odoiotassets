@@ -173,8 +173,8 @@ class RunnerTests(unittest.TestCase):
             iotdemo.run_task(self.publish, self.task, self.publish / "logs", python=sys.executable)
         self.assertFalse((self.publish / "logs").exists())
 
-    def test_saved_switcher_directory(self):
-        folder = self.base / "config/publish-switcher"
+    def test_saved_workbench_directory(self):
+        folder = self.base / "config/aiot-workbench"
         folder.mkdir(parents=True)
         (folder / "settings.json").write_text(json.dumps({"target": str(self.publish)}))
         previous = Path.cwd()

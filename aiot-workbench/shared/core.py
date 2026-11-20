@@ -572,6 +572,7 @@ class Engine:
     scope = "py-json"
     scope_label = "所选格式"
     retain_links = False
+    allow_tool_target = False
 
     def manages(self, path):
         return file_extension(path) in self.extensions
@@ -588,7 +589,7 @@ class Engine:
         if prefix.startswith(b"version https://git-lfs.github.com/spec/v1") and b"\noid sha256:" in prefix:
             raise SyncError("下载结果是 Git LFS 指针而非实际资源：" + entry["path"])
 
-    def __init__(self, target, extensions=None):
+    def __init__(self, target, extensions=None, state_dir=None):
         self.extensions = normalize_extensions(extensions)
         raw = Path(target).expanduser().absolute()
         if raw.is_symlink():
@@ -596,16 +597,16 @@ class Engine:
         self.target = raw.resolve()
         if self.target == Path(self.target.anchor) or self.target == Path.home().resolve():
             raise SyncError("目标不能是文件系统根目录或用户主目录。")
-        if is_relative_to(Path(__file__).resolve(), self.target):
+        if is_relative_to(Path(__file__).resolve(), self.target) and not self.allow_tool_target:
             raise SyncError("工具自身必须放在 publish 外。")
         if not self.target.parent.is_dir():
             raise SyncError("目标父目录不存在。")
         if os.path.ismount(self.target):
             raise SyncError("publish 是挂载点，无法通过目录切换同步。")
-        self.state = self.target.parent / (".publish-switcher-" + self.target.name)
+        self.state = Path(state_dir) if state_dir is not None else self.target.parent / (".publish-switcher-" + self.target.name)
         if self.state.is_symlink():
             raise SyncError("工具状态目录不能是符号链接。")
-        self.state.mkdir(exist_ok=True)
+        self.state.mkdir(parents=True, exist_ok=True)
         for name in ("objects", "profiles", "backups", "history"):
             path = self.state / name
             if path.is_symlink():
@@ -646,6 +647,10 @@ class Engine:
         return current_version(self, user_only=user_only)
 
     def preflight(self):
+        self.filesystem_preflight()
+        assert_stopped(self.target, getattr(self, "exclude_pids", ()))
+
+    def filesystem_preflight(self):
         if self.target.is_symlink() or (self.target.exists() and not self.target.is_dir()):
             raise SyncError("目标必须是普通目录。")
         if os.path.ismount(self.target):
@@ -654,7 +659,6 @@ class Engine:
             raise SyncError("没有目标父目录的写入权限。")
         if self.target.exists() and self.target.stat().st_dev != self.state.stat().st_dev:
             raise SyncError("目标与暂存目录不在同一文件系统。")
-        assert_stopped(self.target)
 
     def _object(self, entry):
         key = hash_field(entry)
@@ -749,7 +753,9 @@ class Engine:
         assets_recovered = False
         if self.scope != "assets" and (self.state / "assets-transaction.json").exists():
             from assets_sync import AssetsEngine
-            assets_recovered = AssetsEngine(self.target).recover()
+            assets_engine = AssetsEngine(self.target)
+            assets_engine.exclude_pids = getattr(self, "exclude_pids", ())
+            assets_recovered = assets_engine.recover()
         from config_versions import recover_transaction
         config_recovered = recover_transaction(self)
         if (self.state / "collection-session.json").exists():
@@ -844,7 +850,7 @@ class Engine:
             raise
         return new
 
-    def apply(self, manifest, source, cancel=None, log=lambda msg: None, mode="strict", expected_actual=None, sync_permissions=False, _restore=False):
+    def apply(self, manifest, source, cancel=None, log=lambda msg: None, mode="strict", expected_actual=None, sync_permissions=False, _restore=False, _prepare_only=False):
         validate_manifest(manifest, allow_empty_entries=_restore)
         self.startup_recover()
         with self.lock():
@@ -881,6 +887,7 @@ class Engine:
                 raise SyncError(f"磁盘空间不足，需要约 {needed / 1024**2:.1f} MiB 可用空间。")
             stage = self.state / ("stage-" + uuid.uuid4().hex)
             stage.mkdir()
+            prepared = False
             try:
                 # Preserve all non-managed resources by hard-linking within this filesystem.
                 # Never chmod or write to these links: the original resource bytes stay intact.
@@ -957,9 +964,12 @@ class Engine:
                 info = {"id": manifest["id"], "version": manifest["version"],
                         "name": manifest.get("name", manifest["id"]), "applied_at": time.time(), "scope": self.scope, "mode": mode,
                         "sync_permissions": bool(sync_permissions), "extensions": list(self.extensions)}
+                if _prepare_only:
+                    prepared = True
+                    return dict(info, stage=str(stage), unchanged=False)
                 return self._commit(stage, info)
             finally:
-                if stage.exists() and not self.journal.exists():
+                if stage.exists() and not self.journal.exists() and not prepared:
                     self._remove_stage(stage)
 
     def restore(self, log=lambda msg: None):

@@ -8,6 +8,10 @@ import sys
 import tempfile
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from bootstrap import configure
+configure()
+
 from core import operation_lock, fsync_dir, SyncError
 
 

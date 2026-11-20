@@ -71,7 +71,7 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual((self.target / name).read_bytes(), (self.target / "config/公开版" / name).read_bytes())
         # The maintenance engine understands v2 journals left by the user launcher.
         script = "import sys; sys.path.insert(0,%r); from core import Engine; Engine(%r).startup_recover()" % (
-            str(ROOT / "engineer"), str(self.target))
+            str(ROOT / "shared"), str(self.target))
         result = subprocess.run([sys.executable, "-c", script], env=self.environment, capture_output=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -91,7 +91,8 @@ class IntegrationTests(unittest.TestCase):
         self.assertFalse((desktop / "aiot-launcher.desktop").exists())
         data = json.loads((config / "settings.json").read_text(encoding="utf-8"))
         self.assertEqual(data["target"], data["publish_dir"])
-        self.assertIn("aiot-workbench/release/", data["program_update_url"])
+        self.assertEqual(data["workbench_directory"], "aiot-workbench")
+        self.assertNotIn("program_update_url", data)
         self.assertIn("session_cli.py", Path(result["script"]).read_text(encoding="utf-8"))
 
     def test_update_gate_blocks_start_and_configuration_without_disabling_stop(self):

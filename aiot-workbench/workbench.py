@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One entry point; launcher and maintenance backends never share imports."""
+"""One entry point and shared backend, with separate launcher/maintenance windows."""
 import argparse
 import logging
 import os
@@ -8,7 +8,9 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT / "launcher"))
+sys.path.insert(0, str(ROOT))
+from bootstrap import configure
+configure()
 from version import VERSION
 
 
@@ -21,7 +23,7 @@ def main(argv=None):
         args = ["gui"]
     command = args.pop(0)
     if command in ("cli", "engineer", "sync", "check", "list", "config", "logs", "restore", "competition", "assets", "formats", "demo", "diagnose", "self-test"):
-        # exec into a fresh interpreter: both source projects have a core.py.
+        # Separate Tk windows and long-running workers, using the same shared backend.
         from launcher_process import interpreter_for
         child = [interpreter_for("engineer"), str(ROOT / "engineer_entry.py")] + ((args or ["cli"]) if command == "cli" else [command] + args)
         if os.name == "nt":

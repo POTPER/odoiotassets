@@ -17,6 +17,10 @@ while (($#)); do
   shift
 done
 [[ ${#target[@]} -le 1 ]] || { echo '只能指定一个 publish 目录' >&2; exit 2; }
+if ! "$cli" && [[ "$(id -u)" -eq 0 ]]; then
+  echo '请用桌面登录账户运行安装脚本，不要 sudo 整个脚本；依赖安装会单独请求 sudo。' >&2
+  exit 1
+fi
 required=()
 command -v python3 >/dev/null 2>&1 || required+=(python3)
 if ! "$cli"; then

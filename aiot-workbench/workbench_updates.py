@@ -1,4 +1,4 @@
-"""One update operation: verified workbench package plus strict publish update."""
+"""One repository snapshot updates the workbench directory and publish files."""
 import json
 import os
 from pathlib import Path
@@ -7,13 +7,15 @@ import subprocess
 import tool_update
 
 
-def update_publish(install, settings, offline=False, report=lambda message: None):
-    # Keep the maintenance backend out of the launcher's import namespace.
+def update_publish(install, settings, offline=False, report=lambda message: None, source_descriptor=None):
+    # The worker shares the backend without blocking Tk or sharing process state.
     from launcher_process import interpreter_for
     command = [interpreter_for("engineer"), str(Path(install) / "content_update.py"),
                "--settings", str(settings), "--auto-apply"]
     if offline:
         command.append("--offline")
+    elif source_descriptor is not None:
+        command += ["--source-json", json.dumps(source_descriptor)]
     logfile = Path(settings).parent / "logs/content-update.log"
     logfile.parent.mkdir(parents=True, exist_ok=True)
     result = None
@@ -57,7 +59,8 @@ def update_all(install, settings, current, release=None, offline_manifest=None,
         elif release:
             report("正在下载并校验启动器…")
             record = tool_update.prepare_online(install, release, current, cancel, lambda size: None)
-        published = update_publish(install, settings, offline=bool(offline_manifest), report=report)
+        source = release.get("source") if release and release.get("kind") == "repository" else None
+        published = update_publish(install, settings, offline=bool(offline_manifest), report=report, source_descriptor=source)
         return {"program_record": record, "publish": published}
     except BaseException:
         if record is not None:

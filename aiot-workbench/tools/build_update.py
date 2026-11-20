@@ -45,7 +45,7 @@ def build(root, output, url):
     release = validate_release({"schema_version": 1, "product": "aiot-workbench", "version": VERSION,
                                 "url": https_url(url), "package_file": archive.name, "size": archive.stat().st_size,
                                 "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
-                                "notes": "启动器、工程师面板、配置显示规则和整包程序更新。"})
+                                "notes": "统一共享后台；同一仓库目录更新工作台及 publish；修复独立会话模块路径。"})
     manifest.write_text(json.dumps(release, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return archive, manifest
 
