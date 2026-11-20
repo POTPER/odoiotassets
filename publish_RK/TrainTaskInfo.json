@@ -266,7 +266,7 @@
     "ResultsFilePath": "IoT/09-TemperatureHumiditySensor/student_data/student_data.json|IoT/14-AirQualitySensor/student_data/student_data.json|IoT/11-NoiseSensor/student_data/student_data.json",
     "ScriptFloderPath": "IoT/02-ActiveBuzzer/ActiveBuzzer_standard.py|IoT/01-LED_RGB/LED_RGB_standard.py",
     "TrainLineName": "",
-    "SensorName": "温湿度传感器|空气质量传感器|风速风向传感器|噪声传感器",
+    "SensorName": "温湿度传感器|空气质量传感器|噪声传感器",
     "OtherName": "蜂鸣器|LED灯",
     "PrintNumber": "1,3,2,1",
     "SceneVideoPath": "Assets/Video/环境监测-01.avi",
