@@ -64,14 +64,27 @@ def inspect_version(engine, version):
     return result
 
 
-def list_versions(engine):
+def list_versions(engine, user_only=False):
     root = engine.target / "config"
     if not root.exists():
         return []
     if root.is_symlink() or not root.is_dir():
         raise SyncError("publish/config 必须是普通目录。")
-    return [inspect_version(engine, p.name) for p in sorted(root.iterdir(), key=lambda p: p.name)
-            if p.is_dir() or p.is_symlink()]
+    if not user_only:
+        return [inspect_version(engine, p.name) for p in sorted(root.iterdir(), key=lambda p: p.name)
+                if p.is_dir() or p.is_symlink()]
+    from config_visibility import read_policy, resolve_version
+    policy, _ = read_policy(engine)
+    result = []
+    for path in root.iterdir():
+        if not (path.is_dir() or path.is_symlink()):
+            continue
+        options = resolve_version(policy, path.name)
+        if options["user_visible"]:
+            item = inspect_version(engine, path.name)
+            if item["valid"]:
+                result.append(dict(item, **options))
+    return sorted(result, key=lambda item: (item["order"], item["display_name"], item["version"]))
 
 
 def _active_snapshot(engine):
@@ -86,11 +99,18 @@ def _active_snapshot(engine):
     return result
 
 
-def preview_version(engine, version):
+def preview_version(engine, version, user_only=False):
+    if user_only:
+        from config_visibility import require_visible
+        options, policy_snapshot = require_visible(engine, version)
     result = inspect_version(engine, version)
+    if user_only:
+        result.update(options)
     try:
         active = _active_snapshot(engine)
         result["snapshot"] = {"sources": result["sources"], "active": active}
+        if user_only:
+            result["snapshot"]["visibility"] = policy_snapshot
         for row in result["mappings"]:
             old = active[row["active"]]
             if row["status"] != "有效":
@@ -103,7 +123,13 @@ def preview_version(engine, version):
     return result
 
 
-def current_version(engine):
+def current_version(engine, user_only=False):
+    if user_only:
+        from config_visibility import read_policy, resolve_version
+        try:
+            policy, _ = read_policy(engine)
+        except SyncError:
+            return "配置版本：显示规则无效，请联系实施人员"
     try:
         active = _active_snapshot(engine)
         matches = [item["version"] for item in list_versions(engine) if item["valid"] and
@@ -112,6 +138,11 @@ def current_version(engine):
         matches = []
     if not matches:
         return "配置版本：自定义／未识别"
+    if user_only:
+        matches = list(dict.fromkeys(resolve_version(policy, name)["display_name"] for name in matches
+                                     if resolve_version(policy, name)["user_visible"]))
+        if not matches:
+            return "配置版本：实施配置"
     if len(matches) > 1:
         return "配置版本：匹配多个版本（" + "、".join(matches) + "）"
     return "配置版本：" + matches[0]
@@ -269,21 +300,21 @@ def recover_transaction(engine):
     return True
 
 
-def activate_version(engine, version, expected_snapshot=None, log=lambda message: None):
+def activate_version(engine, version, expected_snapshot=None, log=lambda message: None, user_only=False):
     engine.startup_recover()
     with engine.lock():
         engine.recover()
-        return activate_version_locked(engine, version, expected_snapshot, log)
+        return activate_version_locked(engine, version, expected_snapshot, log, user_only=user_only)
 
 
-def activate_version_locked(engine, version, expected_snapshot=None, log=lambda message: None):
+def activate_version_locked(engine, version, expected_snapshot=None, log=lambda message: None, user_only=False):
     """Apply a bundle with the caller holding engine.lock() and recovery complete.
 
     The launcher keeps that same lock through process startup and shutdown.
     Existing GUI/CLI callers continue to use activate_version(), which owns its lock.
     """
     engine.preflight()
-    preview = preview_version(engine, version)
+    preview = preview_version(engine, version, user_only=user_only)
     if not preview["valid"]:
         raise SyncError("版本无法应用：\n" + "\n".join(preview["issues"]))
     if expected_snapshot is not None and preview["snapshot"] != expected_snapshot:
@@ -320,7 +351,7 @@ def activate_version_locked(engine, version, expected_snapshot=None, log=lambda 
             _write_file(stage / name, payloads[name], old.get("mode", source_mode))
         atomic_json(backup / "record.json", data)
         fsync_dir(stage)
-        refreshed = preview_version(engine, version)
+        refreshed = preview_version(engine, version, user_only=user_only)
         if not refreshed["valid"] or refreshed["snapshot"] != preview["snapshot"]:
             raise SyncError("准备期间配置发生变化，请重新检查版本。")
         engine.preflight()

@@ -122,6 +122,63 @@ class GuiTests(unittest.TestCase):
         self.assertIn("network unavailable", ui.program_notes.get())
         window.destroy()
 
+    def test_user_config_visibility_alias_and_engineer_editor(self):
+        from test_config_versions import write_bundle
+        from config_visibility_ui import show_visibility_editor
+        from core import atomic_json
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
+            target = Path(directory) / "publish"
+            target.mkdir()
+            hidden = write_bundle(target, "F内部测试")
+            write_bundle(target, "教学")
+            for name, payload in hidden.items():
+                (target / name).write_bytes(payload)
+            policy = {"default_user_visible": True, "rules": [{"prefix": "F", "user_visible": False}],
+                      "versions": {"教学": {"display_name": "课堂版"}}}
+            atomic_json(target / "config/versions.json", policy)
+            self.ui.target.set(str(target))
+            self.ui.engine = Engine(target)
+            self.ui.engineer_mode = False
+            self.ui.refresh_config_choices()
+            self.wait_job()
+            self.root.update()
+            self.assertEqual(self.ui.config_tree.get_children(), ("教学",))
+            self.assertEqual(self.ui.config_tree.item("教学", "values")[0], "课堂版")
+            self.assertEqual(self.ui.task_mode.get(), "配置版本：实施配置")
+            self.ui.engineer_mode = True
+            self.ui.refresh_config_choices()
+            self.wait_job()
+            self.assertIn("F内部测试", self.ui.config_tree.get_children())
+            editor = show_visibility_editor(self.root, self.ui.engine, self.ui.refresh_config_choices)
+            self.root.update_idletasks()
+            self.assertEqual(editor.title(), "配置版本显示设置")
+            def descendants(widget):
+                for child in widget.winfo_children():
+                    yield child
+                    yield from descendants(child)
+            pages = next(child for child in editor.winfo_children() if child.winfo_class() == "TNotebook")
+            pages.select(pages.tabs()[1])
+            version_page = editor.nametowidget(pages.tabs()[1])
+            fields = list(descendants(version_page))
+            version_table = next(child for child in fields if child.winfo_class() == "Treeview")
+            version_table.selection_set("F内部测试")
+            self.root.update()
+            role = next(child for child in fields if child.winfo_class() == "TCombobox")
+            role.set("用户可见")
+            alias = next(child for child in fields if child.winfo_class() == "TEntry")
+            alias.delete(0, "end")
+            alias.insert(0, "公开配置")
+            next(child for child in fields if child.winfo_class() == "TButton" and
+                 child.cget("text") == "应用到此目录").invoke()
+            next(child for child in descendants(editor) if child.winfo_class() == "TButton" and
+                 child.cget("text") == "保存全部设置").invoke()
+            self.wait_job()
+            self.ui.engineer_mode = False
+            self.ui.refresh_config_choices()
+            self.wait_job()
+            self.assertEqual(self.ui.config_tree.item("F内部测试", "values")[0], "公开配置")
+            self.assertEqual(self.ui.task_mode.get(), "配置版本：公开配置")
+
     def test_format_checkboxes_discover_save_and_invalidate_preview(self):
         from generate import generate
         from core import read_json

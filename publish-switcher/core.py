@@ -615,27 +615,27 @@ class Engine:
     def activate_config(self, source_name, active_name):
         raise SyncError("单文件切换已停用，请选择 config 子文件夹并应用整套配置。")
 
-    def list_config_versions(self):
+    def list_config_versions(self, user_only=False):
         from config_versions import list_versions
         with self.lock():
-            return list_versions(self)
+            return list_versions(self, user_only=user_only)
 
-    def preview_config_version(self, version):
+    def preview_config_version(self, version, user_only=False):
         from config_versions import preview_version
         with self.lock():
-            return preview_version(self, version)
+            return preview_version(self, version, user_only=user_only)
 
-    def activate_config_version(self, version, expected_snapshot=None, log=lambda message: None):
+    def activate_config_version(self, version, expected_snapshot=None, log=lambda message: None, user_only=False):
         from config_versions import activate_version
-        return activate_version(self, version, expected_snapshot, log)
+        return activate_version(self, version, expected_snapshot, log, user_only=user_only)
 
     def compare_config_file(self, version, name, expected_snapshot=None, cancel=None):
         from config_versions import compare_file
         return compare_file(self, version, name, expected_snapshot, cancel)
 
-    def task_config_status(self):
+    def task_config_status(self, user_only=False):
         from config_versions import current_version
-        return current_version(self)
+        return current_version(self, user_only=user_only)
 
     def preflight(self):
         if self.target.is_symlink() or (self.target.exists() and not self.target.is_dir()):

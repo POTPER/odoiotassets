@@ -308,6 +308,10 @@ class Application:
         if self.busy:
             return "break"
         self.engineer_mode = not self.engineer_mode
+        self.config_preview = None
+        self.config_tree.delete(*self.config_tree.get_children())
+        self.config_mapping.delete(*self.config_mapping.get_children())
+        self.task_mode.set("配置版本：读取中")
         self.configure_access()
         self.pages.select(self.settings_page if self.engineer_mode else
                           self.config_page if self.program_checked else self.program_page)
@@ -501,6 +505,9 @@ class Application:
         actions = ttk.Frame(page)
         actions.grid(row=1, column=0, sticky="ew", pady=(0, 8))
         self.button(actions, "刷新版本列表", self.refresh_config_choices).pack(side="left")
+        visibility = self.button(actions, "版本显示设置", self.edit_config_visibility)
+        visibility.pack(side="right")
+        self.engineer_widgets.append(visibility)
         ttk.Label(actions, textvariable=self.task_mode).pack(side="left", padx=12)
         versions = ttk.LabelFrame(page, text="1. 选择版本 · 名称来自 publish/config 的子文件夹", padding=6)
         versions.grid(row=2, column=0, sticky="nsew")
@@ -1144,7 +1151,7 @@ class Application:
         except (OSError, ValueError, KeyError):
             text = "当前方案：未由本工具应用"
         self.current.set(text)
-        self.task_mode.set(self.engine.task_config_status())
+        self.task_mode.set(self.engine.task_config_status(user_only=not self.engineer_mode))
         if self.pages.select() == str(self.demo_page):
             self.refresh_demo_tasks()
         else:
@@ -1639,6 +1646,12 @@ class Application:
         previous = self.config_tree.selection()
         selected = previous[0] if previous else None
         engine = self.engine
+        user_only = not self.engineer_mode
+        if user_only:
+            self.config_preview = None
+            self.config_tree.delete(*self.config_tree.get_children())
+            self.config_mapping.delete(*self.config_mapping.get_children())
+            self.task_mode.set("配置版本：读取中")
         def done(result):
             versions, current = result
             self.config_refreshing = True
@@ -1646,17 +1659,28 @@ class Application:
             self.config_tree.delete(*self.config_tree.get_children())
             self.config_mapping.delete(*self.config_mapping.get_children())
             for item in versions:
-                self.config_tree.insert("", "end", iid=item["version"], values=(item["version"], "可用" if item["valid"] else "不可用", "；".join(item["issues"])))
+                label = item.get("display_name", item["version"]) if user_only else item["version"]
+                self.config_tree.insert("", "end", iid=item["version"], values=(label, "可用" if item["valid"] else "不可用", "；".join(item["issues"])))
             if selected and self.config_tree.exists(selected):
                 self.config_tree.selection_set(selected)
             self.task_mode.set(current)
-            self.status.set("配置版本列表已刷新，请选择版本查看三个文件的映射。" if versions else "config 下没有版本文件夹。")
+            self.status.set("请选择需要使用的配置版本。" if versions else "当前没有可用的用户配置，请联系实施人员。"
+                            if user_only else "config 下没有版本文件夹。")
             def finished():
                 self.config_refreshing = False
                 if selected:
                     self.preview_config_selection()
             self.root.after_idle(finished)
-        self.run(lambda: (engine.list_config_versions(), engine.task_config_status()), done)
+        self.run(lambda: (engine.list_config_versions(user_only=user_only), engine.task_config_status(user_only=user_only)), done)
+
+    def edit_config_visibility(self):
+        if self.busy or not self.engineer_mode or not self.ensure_engine():
+            return
+        from config_visibility_ui import show_visibility_editor
+        try:
+            show_visibility_editor(self.root, self.engine, self.refresh_config_choices)
+        except (SyncError, OSError) as exc:
+            messagebox.showerror("无法打开版本显示设置", str(exc))
 
     def preview_config_selection(self):
         self.config_preview = None
@@ -1668,6 +1692,7 @@ class Application:
         if not selection or not self.engine:
             return
         name = selection[0]
+        user_only = not self.engineer_mode
         def done(result):
             if self.config_tree.selection() != (name,):
                 return
@@ -1681,7 +1706,7 @@ class Application:
                 self.config_mapping.selection_set(comparable[0])
             self.status.set("版本有效，确认后将一次替换三个生效 JSON。" if result["valid"] else "不可应用：" + "；".join(result["issues"]))
             self.update_ready()
-        self.run(lambda: self.engine.preview_config_version(name), done)
+        self.run(lambda: self.engine.preview_config_version(name, user_only=user_only), done)
 
     def compare_config_selection(self):
         if self.busy or not self.config_preview or not self.config_mapping.selection() or not self.ensure_engine():
@@ -1737,18 +1762,25 @@ class Application:
         if not self.ensure_engine() or not self.config_preview:
             return
         preview = self.config_preview
+        user_only = not self.engineer_mode
         if not preview["valid"]:
             messagebox.showerror("版本不可用", "\n".join(preview["issues"]))
             return
         mapping = "\n".join(row["source"] + " → " + row["active"] for row in preview["mappings"])
-        if not messagebox.askyesno("应用整套配置", "版本：" + preview["version"] + "\n" + mapping + "\n\n将替换根目录三个 JSON，旧配置会整套备份。请先退出主程序，是否应用？"):
+        label = preview.get("display_name", preview["version"]) if user_only else preview["version"]
+        detail = "" if user_only else "\n" + mapping
+        if not messagebox.askyesno("应用整套配置", "版本：" + label + detail + "\n\n将应用此配置。请先退出主程序，是否应用？"):
             return
         def done(result):
             self.invalidate_check()
             self.config_preview = None
             self.update_current()
-            self.log("整套配置已应用：" + result["version"] + "；备份：" + result["backup"])
-        self.run(lambda: self.engine.activate_config_version(preview["version"], expected_snapshot=preview["snapshot"], log=self.log), done)
+            if user_only:
+                self.status.set("配置已应用：" + label)
+            else:
+                self.log("整套配置已应用：" + result["version"] + "；备份：" + result["backup"])
+        self.run(lambda: self.engine.activate_config_version(preview["version"], expected_snapshot=preview["snapshot"],
+                 log=self.logger.info if user_only else self.log, user_only=user_only), done)
 
     def refresh(self):
         if not self.ensure_engine():
