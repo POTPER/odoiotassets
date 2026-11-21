@@ -29,7 +29,7 @@ class DesktopInstallTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
         return result
 
-    def test_installs_icons_and_relocates_shortcut_in_isolated_home(self):
+    def test_relocates_shortcut_without_requiring_icons(self):
         source = Path(__file__).resolve().parents[1]
         temp_root = Path(os.environ.get("PUBLISH_SWITCHER_TEST_TMP", str(Path(__file__).parent / ".tmp")))
         temp_root.mkdir(parents=True, exist_ok=True)
@@ -44,15 +44,14 @@ class DesktopInstallTests(unittest.TestCase):
             unrelated = desktop_folder / 'AIOT.desktop'
             unrelated.write_text('unrelated app', encoding='utf-8')
             tool = base / "中文 工具"
-            shutil.copytree(source / "icons", tool / "icons")
+            tool.mkdir()
             for directory in (tool, base / "新版 工具"):
                 if directory != tool:
                     shutil.copytree(tool, directory)
                 self.run_installer(source, directory, data, home)
                 desktop = (data / "applications/publish-switcher.desktop").read_text(encoding="utf-8")
                 self.assertIn("\nName=swicher\n", desktop)
-                icon_path = data / "icons/hicolor/256x256/apps/publish-switcher.png"
-                self.assertIn("Icon=" + str(icon_path).replace("\\", "\\\\") + "\n", desktop)
+                self.assertNotIn("\nIcon=", desktop)
                 self.assertIn("StartupWMClass=PublishSwitcher\n", desktop)
                 self.assertIn(str(directory / "switcher.py").replace("\\", "\\\\"), desktop)
                 self.assertIn("Path=" + str(directory).replace("\\", "\\\\") + "\n", desktop)
@@ -60,14 +59,7 @@ class DesktopInstallTests(unittest.TestCase):
                 self.assertEqual(unrelated.read_text(encoding='utf-8'), 'unrelated app')
                 if os.name != 'nt':
                     self.assertEqual(shortcut.stat().st_mode & 0o777, 0o755)
-                for size in (16, 24, 32, 48, 64, 128, 256, 512):
-                    icon = source / "icons" / "swicher-v10-{}.png".format(size)
-                    if not icon.exists():
-                        icon = source / "icons" / "publish-switcher-{}.png".format(size)
-                    installed = data / "icons/hicolor" / ("{0}x{0}/apps/publish-switcher.png".format(size))
-                    self.assertEqual(installed.read_bytes(), icon.read_bytes())
-                self.assertEqual((data / "icons/hicolor/scalable/apps/publish-switcher.svg").read_bytes(),
-                                 (source / "icons/swicher-v10.svg").read_bytes())
+                self.assertFalse((data / "icons").exists())
 
     def test_custom_xdg_desktop_and_disabled_desktop(self):
         source = Path(__file__).resolve().parents[1]
@@ -94,7 +86,7 @@ class DesktopInstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             tool = base / "switcher"
-            shutil.copytree(source / "icons", tool / "icons")
+            tool.mkdir()
             shutil.copyfile(source / "publish_switcher/updates/bootstrap.py", tool / "tool_update.py")
             home = base / "home"
             home.mkdir()

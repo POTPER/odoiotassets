@@ -18,27 +18,28 @@ from publish_switcher.updates import unified as unified_update
 class ProgramPage:
     def __init__(self, application):
         self.application = application
+        self.channel_picker = None
 
     def build_program_page(self):
         page = self.application.program_page
         page.columnconfigure(0, weight=1)
         self.version_banner = VersionBanner(page, VERSION, self.application.font_family)
-        self.version_banner.grid(row=0, column=0, sticky="ew", pady=(6, 18))
+        self.version_banner.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         channel_row = ttk.Frame(page)
-        channel_row.grid(row=2, column=0, sticky="w", pady=(0, 6))
-        ttk.Label(channel_row, text="更新通道", style="Section.TLabel").pack(side="left", padx=(4, 18))
+        channel_row.grid(row=1, column=0, sticky="w")
+        ttk.Label(channel_row, text="通道", style="Section.TLabel").pack(side="left", padx=(4, 10))
         self.channel_frame = ttk.Frame(channel_row)
         self.channel_frame.pack(side="left")
+        self.program_check_button = ttk.Button(channel_row, text="更新", style="Primary.TButton",
+                                               command=self.start_quick_update)
+        self.program_check_button.pack(side="left", padx=(12, 0))
         self.refresh_update_channels()
         self.program_status_label = ttk.Label(page, textvariable=self.program_status, wraplength=650)
-        self.program_status_label.grid(row=3, column=0, sticky="w", pady=8)
+        self.program_status_label.grid(row=2, column=0, sticky="w", pady=8)
         actions = ttk.Frame(page)
-        actions.grid(row=4, column=0, sticky="w", pady=8)
-        self.program_check_button = ttk.Button(actions, text="更新", style="Primary.TButton", command=self.start_quick_update)
-        self.program_check_button.pack(side="left")
-        self.program_check_button.configure(width=16)
+        actions.grid(row=3, column=0, sticky="w")
         self.program_details_button = ttk.Button(actions, text="详情", command=self.toggle_program_notes)
-        self.program_details_button.pack(side="left", padx=8)
+        self.program_details_button.pack(side="left")
         self.program_apply_button = ttk.Button(actions, text="更新并重启", style="Primary.TButton",
                                                 command=self.apply_program_update, state="disabled")
         self.program_apply_button.pack(side="left", padx=8)
@@ -47,7 +48,7 @@ class ProgramPage:
         self.application.engineer_widgets.extend([self.program_status_label, self.program_details_button,
                                      self.program_apply_button, self.program_offline_button])
         self.program_notes_label = ttk.Label(page, textvariable=self.program_notes, wraplength=650, style="Muted.TLabel", justify="left")
-        self.program_notes_label.grid(row=5, column=0, sticky="nw", pady=12)
+        self.program_notes_label.grid(row=4, column=0, sticky="nw", pady=12)
         self.program_notes_label.grid_remove()
 
 
@@ -74,11 +75,33 @@ class ProgramPage:
         for button in self.channel_buttons:
             button.destroy()
         self.channel_buttons = []
-        for index, row in enumerate(rows):
-            button = ttk.Radiobutton(self.channel_frame, text=channel_name(index), style="Channel.TRadiobutton",
-                                     variable=self.application.update_channel, value=index, command=self.change_update_channel)
-            button.grid(row=index // 4, column=index % 4, padx=(0, 8), pady=(0, 8), sticky="ew")
-            self.channel_buttons.append(button)
+        if self.channel_picker is not None:
+            self.channel_picker.destroy()
+            self.channel_picker = None
+        if len(rows) > 4:
+            self.channel_picker = ttk.Combobox(self.channel_frame, values=[channel_name(i) for i in range(len(rows))],
+                                               state="readonly", width=10)
+            self.channel_picker.current(0)
+            self.channel_picker.pack()
+            self.channel_picker.bind("<<ComboboxSelected>>", self.pick_channel)
+        else:
+            for index in range(len(rows)):
+                button = ttk.Radiobutton(self.channel_frame, text=channel_name(index), style="Channel.TRadiobutton",
+                                         variable=self.application.update_channel, value=index, command=self.change_update_channel)
+                button.grid(row=0, column=index, padx=(4 if index else 0, 0))
+                self.channel_buttons.append(button)
+        self.update_channel_controls()
+
+    def pick_channel(self, event):
+        if not self.application.busy:
+            self.application.update_channel.set(event.widget.current())
+            self.change_update_channel()
+
+    def update_channel_controls(self):
+        for button in self.channel_buttons:
+            button.configure(state="disabled" if self.application.busy else "normal")
+        if self.channel_picker is not None:
+            self.channel_picker.configure(state="disabled" if self.application.busy else "readonly")
 
 
     def program_channel(self):
@@ -162,7 +185,8 @@ class ProgramPage:
                           repositories=repositories, presets=json.loads(json.dumps(self.application.presets)),
                           extensions=list(self.application.file_extensions), release_url=address,
                           profile_id=self.application.quick_profile.get().strip(), sync_permissions=self.application.sync_permissions.get(),
-                          cancel=self.application.cancel, settings_path=self.application.settings_file)
+                          cancel=self.application.cancel, settings_path=self.application.settings_file,
+                          allow_missing_target=True)
         except Exception as exc:
             result = dict(success=False, publish="未更新", program="未更新", error=str(exc))
             self.application.quick_dialog.update(dict(message=str(exc), cancellable=False))
@@ -209,7 +233,8 @@ class ProgramPage:
             self.program_status.set("已更新")
             self.application.configure_access()
             # Save/read cache and refresh config/Demo through the existing connection path.
-            self.application.root.after_idle(lambda: self.application.connect(updated=True))
+            if not result.get("publish_skipped"):
+                self.application.root.after_idle(lambda: self.application.connect(updated=True))
 
 
     def program_check_finished(self, data):

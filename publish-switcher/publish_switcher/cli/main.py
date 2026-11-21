@@ -93,6 +93,7 @@ def parser():
     logs.add_argument("--tail", type=int, default=80, help="显示最后多少行，默认80")
     gui = sub.add_parser("gui", help="打开用户界面（需要图形桌面和 Tkinter）")
     gui.add_argument("--engineer", action="store_true", help="直接打开工程师界面")
+    gui.add_argument("--resume-startup-update", action="store_true", help=argparse.SUPPRESS)
     for command in (formats, menu, diagnose, sub.choices["check"], sub.choices["sync"]):
         command.add_argument("--extensions", default=argparse.SUPPRESS,
                              help="本次同步格式，逗号分隔，例如 .py,.json,.ttf")
@@ -145,11 +146,13 @@ def main(argv=None):
             from publish_switcher.gui.widgets.icons import WM_CLASS
             install = INSTALL_ROOT
             with tool_update.instance_lock(install):
-                tool_update.recover_update(install)
+                if args.engineer:
+                    tool_update.recover_update(install)
                 from publish_switcher.gui.app import Application
                 root = tk.Tk(className=WM_CLASS)
                 root.report_callback_exception = lambda typ, value, tb: logger.error("界面回调异常", exc_info=(typ, value, tb))
-                Application(root, engineer=args.engineer, updates=True)
+                Application(root, engineer=args.engineer, updates=True, auto_update=not args.engineer,
+                            resume_update=args.resume_startup_update)
                 root.mainloop()
             return 0
         if args.command == "competition":

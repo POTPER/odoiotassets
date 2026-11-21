@@ -26,6 +26,7 @@ class ProgramUpdateTests(unittest.TestCase):
         self.assertEqual(entries["ui_assets.py"], root / "tools/packaging/legacy/ui_assets.py")
         self.assertTrue(all(entries[name].is_file() for name in updater.REQUIRED_FILES))
         self.assertFalse(any(name.startswith(("tools/", "tests/", "release/", "install/")) for name in entries))
+        self.assertFalse(any(Path(name).suffix.lower() in {".png", ".svg", ".ico"} for name in entries))
 
     def setUp(self):
         root = Path(os.environ.get("PUBLISH_SWITCHER_TEST_TMP", str(Path(__file__).parent / ".tmp")))

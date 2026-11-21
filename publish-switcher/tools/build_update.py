@@ -20,8 +20,6 @@ LEGACY_ENTRIES = (
 )
 DISTRIBUTION_GROUPS = {
     "publish_switcher": {".py"},
-    "assets": {".png"},
-    "icons": {".png", ".svg", ".ico"},
     "comparison-samples": {".py", ".json", ".md"},
     "docs": {".md"},
     "debs": {".deb", ".tsv"},
@@ -58,14 +56,7 @@ def installer_source(root):
 
 
 def verify_distribution(root):
-    sizes = (16, 24, 32, 48, 64, 128, 256, 512)
     required = (
-        "icons/swicher-v10.svg",
-        *(f"icons/swicher-v10-{size}.png" for size in sizes),
-        *(f"assets/ui/{name}.png" for name in (
-            "sidebar-background-v10", "update-hero-64", "update-hero-112",
-            "update-icon-24", "update-icon-40", "config-icon-24", "config-icon-40",
-        )),
         *(f"comparison-samples/{side}/{name}.py" for side in ("local", "remote")
           for name in ("changed", "empty", "newlines", "permissions", "same")),
         "comparison-samples/remote/missing.json",
@@ -107,7 +98,7 @@ def build(root, output, url):
         release = validate_release({"schema_version": 1, "product": "publish-switcher", "version": VERSION,
                                     "url": https_url(url), "package_file": archive.name, "size": temporary.stat().st_size,
                                     "sha256": hashlib.sha256(temporary.read_bytes()).hexdigest(),
-                                    "notes": "归类源码中的安装脚本和升级入口，按清单构建单包并保留旧版升级路径。"})
+                                    "notes": "简化启动更新提示。未安装 publish 时也可继续更新程序。"})
         with tempfile.NamedTemporaryFile(dir=output, prefix="manifest-", suffix=".tmp", delete=False,
                                          mode="w", encoding="utf-8") as stream:
             temporary_manifest = Path(stream.name)

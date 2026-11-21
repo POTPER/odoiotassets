@@ -52,6 +52,10 @@ def candidates(config, primary=None, branch=None, explicit=False, extra=None):
     return normalize(values)
 
 
+class ProfileUnavailable(SyncError):
+    pass
+
+
 def discover(values, presets, log=lambda message: None, cancel=None, profile=None, version=None, all_results=False):
     values = normalize(values)
     failures, results = [], []
@@ -68,7 +72,7 @@ def discover(values, presets, log=lambda message: None, cancel=None, profile=Non
                 profiles = [entry for entry in profiles if (entry.get("manifest") or entry["profile"])["id"] == profile
                             and (version is None or (entry.get("manifest") or entry["profile"])["version"] == version)]
             if not profiles:
-                raise SyncError("仓库中没有所需的可用方案。")
+                raise ProfileUnavailable("仓库中没有所需的可用方案。")
             log("仓库可用，已选定固定提交：{} / {}".format(address, source.commit[:12]))
             if not all_results:
                 return profiles
@@ -76,6 +80,7 @@ def discover(values, presets, log=lambda message: None, cancel=None, profile=Non
         except Cancelled:
             raise
         except (SyncError, urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
+            last_failure = exc
             check_cancel(cancel)
             reason = str(exc)
             log("仓库不可用：{}；{}".format(address, reason))
@@ -83,4 +88,4 @@ def discover(values, presets, log=lambda message: None, cancel=None, profile=Non
             results.append(dict(item, status="失败", commit="", error=reason))
     if all_results:
         return results
-    raise SyncError("所有仓库均不可用，尚未修改 publish：\n" + "\n".join(failures))
+    raise SyncError("所有仓库均不可用，尚未修改 publish：\n" + "\n".join(failures)) from last_failure

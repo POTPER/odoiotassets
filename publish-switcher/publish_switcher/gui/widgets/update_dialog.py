@@ -81,11 +81,14 @@ class UpdateDialog:
         self.running = False
         self.progress.stop()
         self.progress.configure(mode="determinate", maximum=1, value=1 if result["success"] else 0)
-        self.message.set("更新完成" if result["success"] else "更新已取消" if result.get("cancelled") else "更新未完成")
+        if result["success"] and result.get("publish_skipped") and not result.get("restart"):
+            self.message.set("已是最新版本")
+        else:
+            self.message.set("更新完成" if result["success"] else "更新已取消" if result.get("cancelled") else "更新未完成")
         text = "publish：{}；swicher：{}。".format(result["publish"], result["program"])
         if result.get("error"):
             text += "\n" + result["error"].split("\n")[0][:95]
-        elif not result.get("restart"):
+        elif not result.get("restart") and not result.get("publish_skipped"):
             text += "\n请重新启动主程序。"
         self.summary.set(text)
         self.action.configure(text="关闭", state="normal", command=self.close)

@@ -38,13 +38,8 @@ from publish_switcher.gui.widgets.style import (
     NavButton,
     StatusBadge,
     apply_theme,
-    rounded,
     style_dialog,
-    icon,
 )
-from publish_switcher.gui.widgets.reference import SidebarArt, UpdateDecoration
-from publish_switcher.gui.widgets.assets import asset
-from publish_switcher.gui.widgets.icons import load_icons
 from publish_switcher.sync.formats import DEFAULT_EXTENSIONS, normalize_extensions
 from publish_switcher.version import VERSION
 from publish_switcher.updates import release as tool_update
@@ -62,8 +57,12 @@ CONFIG = settings_path()
 class Application:
     """主应用：侧栏导航、用户/工程师模式切换、后台任务与更新小窗。"""
 
-    def __init__(self, root, engineer=True, updates=False):
+    def __init__(self, root, engineer=True, updates=False, *, auto_update=False, resume_update=False):
         self.root = root
+        auto_update = auto_update and updates and not engineer
+        self.startup_window = None
+        if auto_update:
+            root.withdraw()
         self.config_view = ConfigurationPage(self)
         self.program_view = ProgramPage(self)
         self.files_view = FilesPage(self)
@@ -88,7 +87,6 @@ class Application:
         if not self.logger.handlers:
             self.logger.addHandler(logging.NullHandler())
         root.title("swicher")
-        self.icons = load_icons(root)
         root.geometry("{}x{}".format(min(1240, max(900, root.winfo_screenwidth() - 80)),
                                           min(780, max(640, root.winfo_screenheight() - 100))))
         root.minsize(900, 640)
@@ -108,7 +106,7 @@ class Application:
         self.config_view.config_refreshing = False
         self.assets_view.assets_checked = None
         self.assets_view.assets_profiles = []
-        self.assets_view.assets_summary = tk.StringVar(value="先选择资源方案，检查本地 Assets 与来源的差异。")
+        self.assets_view.assets_summary = tk.StringVar(value="未检查")
         try:
             config = read_settings(CONFIG)
         except (OSError, ValueError):
@@ -165,7 +163,17 @@ class Application:
         self.assets_view.assets_tree.bind("<<TreeviewSelect>>", lambda event: self.update_ready())
         self.assets_view.assets_combo.bind("<<ComboboxSelected>>", lambda event: self.assets_view.invalidate_assets())
         self.pages.bind("<<NotebookTabChanged>>", self.page_changed)
-        if updates and not engineer:
+        if auto_update:
+            from publish_switcher.gui.startup import StartupWindow
+            self.pages.select(self.program_page)
+            self.startup_window = StartupWindow(self)
+
+            def begin_startup():
+                self.program_view.program_check_id = None
+                self.startup_window.start(resume_update)
+
+            self.program_view.program_check_id = root.after_idle(begin_startup)
+        elif updates and not engineer:
             self.pages.select(self.program_page)
             self.program_view.program_check_id = root.after(150, self.program_view.check_program_update)
         elif self.target.get():
@@ -180,24 +188,19 @@ class Application:
     def build_layout(self):
         self.controls = []
         self.engineer_widgets = []
-        self.update_summary = tk.StringVar(value="尚未检查。请选择方案，再检查差异。")
+        self.update_summary = tk.StringVar(value="未检查")
         self.log_visible = False
         self.font_family = apply_theme(self.root)
         self.sidebar_compact = False
         self.sidebar = tk.Frame(self.root, background=COLORS["sidebar"], width=206)
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
-        self.sidebar_art = SidebarArt(self.sidebar)
-        self.sidebar_art.place(x=0, y=0, relwidth=1, relheight=1)
         tk.Frame(self.root, background=COLORS["border"], width=1).pack(side="left", fill="y")
-        self.brand = tk.Canvas(self.sidebar, height=94, background=COLORS["sidebar"], highlightthickness=0)
+        self.brand = tk.Canvas(self.sidebar, height=78, background=COLORS["sidebar"], highlightthickness=0)
         self.brand.pack(fill="x")
         self.brand.bind("<Configure>", lambda event: self.draw_brand())
-        self.nav_caption = tk.Label(self.sidebar, text="工作区", anchor="w", background=COLORS["sidebar"],
-                                    foreground=COLORS["sidebar_muted"], font=(self.font_family, 8))
-        self.nav_caption.pack(fill="x", padx=23, pady=(12, 8))
         self.nav_frame = tk.Frame(self.sidebar, background=COLORS["sidebar"])
-        self.nav_frame.pack(fill="x", padx=8)
+        self.nav_frame.pack(fill="x", padx=10, pady=(5, 0))
         self.sidebar_footer = tk.Frame(self.sidebar, background=COLORS["sidebar"])
         self.sidebar_footer.pack(side="bottom", fill="x", padx=20, pady=20)
         tk.Label(self.sidebar_footer, text="v" + VERSION, background=COLORS["sidebar"], foreground=COLORS["sidebar_muted"],
@@ -207,20 +210,15 @@ class Application:
         header = ttk.Frame(self.workspace, padding=(20, 12, 20, 8))
         self.header = header
         header.pack(fill="x")
-        header.columnconfigure(1, weight=1)
-        self.page_symbol = tk.Canvas(header, width=42, height=46, background=COLORS["bg"], highlightthickness=0)
-        self.page_symbol.grid(row=0, column=0, rowspan=2, padx=(0, 12))
+        header.columnconfigure(0, weight=1)
         self.page_title = tk.StringVar(value="更新文件")
-        self.page_caption = tk.StringVar(value="勾选同步格式，比较差异，选择更新方式后应用。")
         self.heading_label = ttk.Label(header, textvariable=self.page_title, style="PageTitle.TLabel")
-        self.heading_label.grid(row=0, column=1, sticky="w")
+        self.heading_label.grid(row=0, column=0, sticky="w")
         self.phase_badge = StatusBadge(header, self.font_family)
         self.quick_update_button = ttk.Button(header, text="更新", style="Primary.TButton", command=self.program_view.start_quick_update)
         if self.updates_enabled:
             self.quick_update_button.grid(row=0, column=3, padx=(12, 0))
         self.config_header_refresh = ttk.Button(header, text="刷新配置", command=self.config_view.refresh_config_choices)
-        self.header_decoration = UpdateDecoration(header)
-        self.caption_label = ttk.Label(header, textvariable=self.page_caption, style="Muted.TLabel")
         location = ttk.Frame(self.workspace, padding=(20, 0, 20, 10))
         self.location_bar = location
         location.pack(fill="x")
@@ -277,19 +275,19 @@ class Application:
         self.nav_buttons = {}
         self.page_info = {}
         navigation = (
-            (self.update_page, "更新文件", "文件", "update", "勾选同步格式，比较差异，选择更新方式后应用。"),
-            (self.assets_page, "Assets 资源", "资源", "assets", "比较图片、视频等资源的内容，只补齐缺失文件。"),
-            (self.config_page, "配置切换", "配置", "config", "管理并切换运行配置版本。"),
-            (self.demo_page, "IoT Demo", "Demo", "demo", "按当前任务配置运行模块，在右侧查看日志和结果。"),
-            (self.tools_page, "辅助工具", "工具", "tools", "维护文件权限、恢复备份与运行比较自测。"),
-            (self.settings_page, "设置", "设置", "settings", "连接 publish 目录与资源仓库，管理平台方案。"),
+            (self.update_page, "更新文件", "文件"),
+            (self.assets_page, "Assets 资源", "资源"),
+            (self.config_page, "配置切换", "配置"),
+            (self.demo_page, "IoT Demo", "Demo"),
+            (self.tools_page, "辅助工具", "工具"),
+            (self.settings_page, "设置", "设置"),
         )
         if self.updates_enabled:
-            navigation += ((self.program_page, "程序更新", "升级", "update", "检查并更新设备软件。"),)
-        for page, name, short, symbol, description in navigation:
+            navigation += ((self.program_page, "程序更新", "更新"),)
+        for page, name, short in navigation:
             key = str(page)
-            self.page_info[key] = (name, description)
-            button = NavButton(self.nav_frame, name, short, symbol, lambda page=page: self.pages.select(page), self.font_family)
+            self.page_info[key] = name
+            button = NavButton(self.nav_frame, name, short, lambda page=page: self.pages.select(page), self.font_family)
             button.pack(fill="x", pady=2)
             self.nav_buttons[key] = button
         self.root.bind("<Configure>", self.resize_shell, add="+")
@@ -368,45 +366,24 @@ class Application:
     def draw_brand(self):
         self.brand.delete("all")
         compact = self.sidebar_compact
-        x = 19 if compact else 21
-        if 32 in self.icons:
-            self.brand.create_image(x, 27, image=self.icons[32], anchor="nw", tags="app-icon")
-        else:
-            rounded(self.brand, x, 27, x + 32, 59, radius=7, fill=COLORS["primary"], outline="")
-            self.brand.create_text(x + 16, 43, text="PS", fill=COLORS["bg"], font=(self.font_family, 10, "bold"))
-        if not compact:
-            self.brand.create_text(66, 43, text="swicher", anchor="w", fill=COLORS["sidebar_text"], font=(self.font_family, 16, "bold"))
+        x = self.brand.winfo_width() / 2 if compact else 22
+        self.brand.create_text(x, 38, text="swicher", anchor="center" if compact else "w",
+                               fill=COLORS["sidebar_text"], font=(self.font_family, 10 if compact else 17, "bold"))
 
     def sync_navigation(self):
         key = self.pages.select()
         if key in self.page_info:
-            title, description = self.page_info[key]
-            self.page_title.set(title)
-            self.page_caption.set(description)
+            self.page_title.set(self.page_info[key])
         for page, button in self.nav_buttons.items():
             button.set_selected(page == key)
-        name = "config" if key == str(self.config_page) else "update" if self.updates_enabled and key == str(self.program_page) else "tools"
-        self.page_symbol.delete("all")
-        photo = asset(self.page_symbol, name + "-icon-40.png") if name in ("update", "config") else None
-        if photo:
-            self.page_symbol.create_image(21, 23, image=photo)
-        else:
-            icon(self.page_symbol, name, 3, 7, COLORS["accent"] if name == "update" else COLORS["text"], 32)
-        if not self.sidebar_compact and name in ("config", "update"):
-            self.caption_label.grid(row=1, column=1, sticky="w", pady=(4, 0))
-        else:
-            self.caption_label.grid_remove()
         self.config_header_refresh.grid_remove()
-        self.header_decoration.grid_remove()
         if key == str(self.config_page) and not self.engineer_mode:
-            self.config_header_refresh.grid(row=0, column=2, rowspan=2, padx=(6, 0))
+            self.config_header_refresh.grid(row=0, column=2, padx=(6, 0))
         if self.updates_enabled:
             if key == str(self.program_page):
                 self.quick_update_button.grid_remove()
-                if not self.sidebar_compact:
-                    self.header_decoration.grid(row=0, column=2, rowspan=2)
             else:
-                self.quick_update_button.grid(row=0, column=3, rowspan=2, padx=(12, 0))
+                self.quick_update_button.grid(row=0, column=3, padx=(12, 0))
 
     def resize_shell(self, event):
         if event.widget is not self.root:
@@ -415,8 +392,6 @@ class Application:
         if compact != self.sidebar_compact:
             self.sidebar_compact = compact
             self.sidebar.configure(width=76 if compact else 206)
-            self.nav_caption.configure(text="功能" if compact else "工作区")
-            self.nav_caption.pack_configure(padx=19 if compact else 23)
             if compact:
                 self.sidebar_footer.pack_forget()
             else:
@@ -425,7 +400,6 @@ class Application:
                 button.set_compact(compact)
             self.header.configure(padding=(16, 4, 16, 2) if compact else (20, 12, 20, 8))
             self.heading_label.configure(style="CompactTitle.TLabel" if compact else "PageTitle.TLabel")
-            self.caption_label.grid_remove()
             self.location_bar.configure(padding=(16, 0, 16, 6) if compact else (20, 0, 20, 10))
             self.text.configure(height=2 if compact else 3)
             self.draw_brand()
@@ -564,6 +538,10 @@ class Application:
                 elif kind == "program_check":
                     self.program_view.program_check_finished(data)
                     continue
+                elif kind == "startup_progress":
+                    if self.startup_window:
+                        self.startup_window.update(data)
+                    continue
                 elif kind == "quick_progress":
                     if self.quick_dialog and self.quick_dialog.exists():
                         self.quick_dialog.update(data)
@@ -587,6 +565,10 @@ class Application:
                     self.cancel_button.configure(text="取消准备")
                     self.progress.stop()
                     if kind in ("error", "demo_preflight_error"):
+                        if self.startup_window:
+                            self.startup_window.finish(dict(success=False, error=data))
+                            self.update_ready()
+                            continue
                         was_quick = self.quick_dialog and self.quick_dialog.exists() and self.quick_dialog.running
                         self.last_error = True
                         self.checked = None
@@ -793,8 +775,7 @@ class Application:
             self.assets_view.assets_details_button.configure(state="normal" if ready and self.assets_view.assets_tree.selection() else "disabled")
             self.assets_view.assets_combo.configure(state="readonly" if not self.busy else "disabled")
         if self.updates_enabled:
-            for button in self.program_view.channel_buttons:
-                button.configure(state="disabled" if self.busy else "normal")
+            self.program_view.update_channel_controls()
             self.quick_update_button.configure(state="normal" if not self.program_checking and not self.busy else "disabled")
             self.program_view.program_check_button.configure(state="normal" if not self.program_checking and not self.busy else "disabled")
             self.program_view.program_apply_button.configure(state="normal" if self.program_view.program_release and not self.program_checking and not self.busy else "disabled")

@@ -20,8 +20,6 @@ class AssetsPage:
         page = self.application.assets_page
         page.columnconfigure(0, weight=1)
         page.rowconfigure(2, weight=1)
-        ttk.Label(page, text="只下载 Assets 内缺失的普通文件；已有文件（含空文件和内容不同）跳过，多余资源保留。",
-                  wraplength=820).grid(row=0, column=0, sticky="w", pady=(0, 8))
         choices = ttk.Frame(page)
         choices.grid(row=1, column=0, sticky="ew", pady=(0, 8))
         choices.columnconfigure(1, weight=1)
@@ -31,7 +29,7 @@ class AssetsPage:
         self.application.controls.append(self.assets_combo)
         self.application.button(choices, "刷新远端方案", self.application.refresh, row=0, column=2)
         self.application.button(choices, "导入本地方案", self.application.settings_view.import_local, row=0, column=3)
-        table = ttk.LabelFrame(page, text="大小与内容哈希比较 · 相同文件绿色，增量仅补缺失", padding=6)
+        table = ttk.LabelFrame(page, text="资源差异", padding=6)
         table.grid(row=2, column=0, sticky="nsew")
         self.assets_tree = ttk.Treeview(table, columns=("status", "path", "local", "remote", "action", "cached"), show="headings", height=9, selectmode="browse")
         for key, title, width in (("status", "比较结果", 100), ("path", "资源相对路径", 300), ("local", "本地字节", 95),
@@ -44,23 +42,20 @@ class AssetsPage:
         self.application.scrollable_tree(table, self.assets_tree, horizontal=True)
         actions = ttk.Frame(page)
         actions.grid(row=3, column=0, sticky="ew", pady=8)
-        self.assets_check_button = self.application.button(actions, "1. 检查资源差异", self.preview_assets)
+        self.assets_check_button = self.application.button(actions, "检查差异", self.preview_assets)
         self.assets_check_button.pack(side="left")
         self.assets_details_button = self.application.button(actions, "查看资源校验信息", self.show_assets_details)
         self.assets_details_button.pack(side="left", padx=8)
-        self.assets_apply_button = self.application.button(actions, "2. 下载缺失资源", self.download_assets)
+        self.assets_apply_button = self.application.button(actions, "补齐缺失资源", self.download_assets)
         self.assets_apply_button.configure(style="Primary.TButton")
         self.assets_apply_button.pack(side="right")
         ttk.Label(page, textvariable=self.assets_summary, wraplength=820).grid(row=4, column=0, sticky="w")
-        ttk.Label(page, text="大文件下载完成后校验；失败或取消不应用部分资源。此页只补缺失，不受文件格式勾选影响。",
-                  wraplength=820).grid(row=5, column=0, sticky="w", pady=(5, 0))
-
 
     def invalidate_assets(self):
         self.assets_checked = None
         if hasattr(self, "assets_tree"):
             self.assets_tree.delete(*self.assets_tree.get_children())
-        self.assets_summary.set("请检查资源差异；只补缺失文件，已有资源保留。")
+        self.assets_summary.set("未检查")
         self.application.update_ready()
 
 
@@ -142,7 +137,7 @@ class AssetsPage:
             self.invalidate_assets()
             self.application.demo_page.invalidate_demo_tasks()
             self.application.status.set("Assets 资源下载完成，已有资源保持原样。")
-            self.assets_summary.set("Assets 下载完成；重新检查可确认缺失文件已补齐。")
+            self.assets_summary.set("资源已补齐")
             self.application.append("Assets 备份：" + str(self.application.engine.state / "backups" / result["backup"]) if result.get("backup") else "Assets 无需下载。")
         self.application.run(lambda: AssetsEngine(checked["target"]).download_missing(checked["manifest"], item["source"],
                       expected_actual=preview["actual"], cancel=self.application.cancel, log=self.application.log), done)

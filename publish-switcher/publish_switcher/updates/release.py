@@ -161,11 +161,12 @@ def check_release(url, install, current, repositories=None):
                 release[0]["mirror_repositories"] = repositories
             return release
         except Exception as exc:
-            if not repositories:
+            if isinstance(exc, Cancelled) or not repositories:
                 raise
+            last_failure = exc
             failures.append(address + "：" + str(exc))
             logging.getLogger("publish-switcher").warning("程序更新地址不可用：%s；%s", address, exc)
-    raise UpdateError("程序更新地址均不可用：\n" + "\n".join(failures))
+    raise UpdateError("程序更新地址均不可用：\n" + "\n".join(failures)) from last_failure
 
 
 def remember_release(release, install, current):
@@ -177,7 +178,7 @@ def remember_release(release, install, current):
     return release, version_number(release["version"]) > version_number(current)
 
 
-def prepare_online(install, release, current, cancel, progress):
+def prepare_online(install, release, current, cancel, progress, *, on_attempt=None):
     state = update_state(install)
     package = state / "download.zip"
     failures = []
@@ -185,15 +186,17 @@ def prepare_online(install, release, current, cancel, progress):
     for address in addresses:
         try:
             source, location = remote_file(address)
-            source.download(location, package, release["size"], release["sha256"], cancel, progress)
+            options = {"on_attempt": on_attempt} if on_attempt is not None else {}
+            source.download(location, package, release["size"], release["sha256"], cancel, progress, **options)
             break
         except Exception as exc:
             if isinstance(exc, Cancelled) or not release.get("mirror_repositories"):
                 raise
+            last_failure = exc
             failures.append(address + "：" + str(exc))
             logging.getLogger("publish-switcher").warning("程序包地址不可用：%s；%s", address, exc)
     else:
-        raise UpdateError("程序包下载地址均不可用：\n" + "\n".join(failures))
+        raise UpdateError("程序包下载地址均不可用：\n" + "\n".join(failures)) from last_failure
     return prepare_package(install, release, package, current)
 
 

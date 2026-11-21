@@ -1,5 +1,6 @@
 """Hidden Tk smoke tests; never load the user's actual settings or publish."""
 import sys
+import threading
 import time
 import tempfile
 try:
@@ -127,17 +128,8 @@ class GuiTests(unittest.TestCase):
         self.assertTrue(all(str(row["button"].cget("state")) == "disabled" for row in ui.config_view.config_table.rows.values()))
         ui.root.withdraw()
 
-    def test_reference_generated_assets_load_without_runtime_pillow_and_survive_gc(self):
-        import gc
-        from publish_switcher.gui.widgets.assets import asset
+    def test_version_banner_reports_checks_without_loading_images(self):
         ui = self.channel_ui()
-        for name, size in (("update-icon-24.png", 24), ("config-icon-40.png", 40), ("update-hero-112.png", 112)):
-            photo = asset(ui.root, name)
-            self.assertEqual((photo.width(), photo.height()), (size, size))
-        self.assertIsNotNone(ui.program_view.version_banner.hero)
-        gc.collect()
-        self.assertIs(asset(ui.root, "update-hero-112.png"), ui.program_view.version_banner.hero)
-        self.assertIsNotNone(asset(ui.root, "sidebar-background-v10.png", cover=(206, 1080)))
         ui.program_view.version_banner.set_state("idle", "—")
         self.assertEqual(ui.program_view.version_banner.checked.get(), "—")
         rows, address = ui.program_view.program_channel()
@@ -215,7 +207,6 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(ui.root.cget("background"), app.COLORS["bg"])
         for widget in (ui.phase_badge, ui.status_label, ui.cancel_button, ui.progress, ui.program_view.program_notes_label):
             self.assertEqual(widget.winfo_manager(), "")
-        self.assertEqual(ui.caption_label.winfo_manager(), "grid")
         ui.program_view.program_notes.set("完整错误和版本说明")
         self.assertEqual(ui.program_view.program_details_button.winfo_manager(), "")
         ui.program_view.program_details_button.invoke()
@@ -257,6 +248,74 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(ui.program_view.program_notes_label.winfo_manager(), "")
         self.assertEqual({key for key, button in ui.nav_buttons.items() if button.winfo_manager()}, expected)
 
+    def test_automatic_update_shows_only_startup_window_until_worker_finishes(self):
+        window = tk.Toplevel(self.root)
+        self.addCleanup(lambda: window.destroy() if window.winfo_exists() else None)
+        allow_finish = threading.Event()
+        self.addCleanup(allow_finish.set)
+
+        def update(**options):
+            options["event"](dict(phase="publish-download", message="下载", cancellable=True,
+                                  received=1024, total=4096))
+            allow_finish.wait(3)
+            return dict(success=True, restart=False, publish="更新成功", target=str(Path.cwd() / "test-publish"), channel=0)
+
+        with patch.object(app, "CONFIG", Path(__file__).parent / "nonexistent-settings.json"), \
+                patch("publish_switcher.updates.startup.run_startup_update", side_effect=update), \
+                patch.object(app.Application, "connect") as connect:
+            ui = app.Application(window, engineer=False, updates=True, auto_update=True)
+            startup = ui.startup_window
+            deadline = time.monotonic() + 2
+            while startup.sample is None and time.monotonic() < deadline:
+                self.root.update()
+                time.sleep(.01)
+            self.assertEqual(window.state(), "withdrawn")
+            self.assertTrue(startup.window.winfo_viewable())
+            self.assertEqual(float(startup.progress["value"]), 1024)
+            ui.quick_committing.set()
+            startup.close()
+            self.assertFalse(ui.cancel.is_set())
+            allow_finish.set()
+            self.pump_ui(ui)
+            self.assertEqual(startup.message.cget("text"), "更新成功")
+            deadline = time.monotonic() + 2
+            while ui.startup_window is not None and time.monotonic() < deadline:
+                self.root.update()
+                time.sleep(.01)
+            self.assertEqual(window.state(), "normal")
+            self.assertIsNone(ui.startup_window)
+            self.assertEqual(ui.pages.select(), str(ui.config_page))
+            connect.assert_called_once()
+
+    def test_startup_failure_is_brief_and_retry_opens_program_page_without_publish(self):
+        window = tk.Toplevel(self.root)
+        self.addCleanup(lambda: window.destroy() if window.winfo_exists() else None)
+        results = [dict(success=False, retry_source=True, error="HTTPS download failed", local_error="/example/publish"),
+                   dict(success=True, publish_skipped=True, program="已是最新版")]
+        with patch.object(app, "CONFIG", Path(__file__).parent / "nonexistent-settings.json"), \
+                patch("publish_switcher.updates.startup.run_startup_update", side_effect=results) as update, \
+                patch.object(app.Application, "connect") as connect:
+            ui = app.Application(window, engineer=False, updates=True, auto_update=True)
+            self.root.update_idletasks()
+            self.pump_ui(ui)
+            startup = ui.startup_window
+            self.assertEqual(startup.message.cget("text"), "连接失败")
+            self.assertEqual(startup.details.cget("text"), "")
+            buttons = {button.cget("text"): button for button in startup.actions.pack_slaves()}
+            self.assertEqual(set(buttons), {"重试", "退出"})
+            buttons["重试"].invoke()
+            self.pump_ui(ui)
+            self.assertEqual(startup.message.cget("text"), "已是最新版本")
+            deadline = time.monotonic() + 2
+            while ui.startup_window is not None and time.monotonic() < deadline:
+                self.root.update()
+                time.sleep(.01)
+            self.assertEqual(window.state(), "normal")
+            self.assertIsNone(ui.startup_window)
+            self.assertEqual(ui.pages.select(), str(ui.program_page))
+            self.assertEqual(update.call_count, 2)
+            connect.assert_not_called()
+
     def test_update_channels_follow_repository_order_and_reset_to_first_when_changed(self):
         ui = self.channel_ui()
         self.assertEqual(ui.update_channel.get(), 0)
@@ -278,6 +337,50 @@ class GuiTests(unittest.TestCase):
         ui.program_view.refresh_update_channels()
         self.assertEqual(len(ui.program_view.channel_buttons), 1)
         self.assertEqual(ui.update_channel.get(), 0)
+
+    def test_update_button_stays_in_one_row_with_channel_selector(self):
+        ui = self.channel_ui()
+        ui.root.geometry("900x640")
+        ui.root.deiconify()
+        ui.root.update()
+
+        view = ui.program_view
+        update = view.program_check_button
+
+        def assert_same_row(selector):
+            self.assertTrue(selector.winfo_ismapped())
+            self.assertTrue(update.winfo_ismapped())
+            self.assertGreaterEqual(update.winfo_rootx(), selector.winfo_rootx() + selector.winfo_width())
+            self.assertLessEqual(abs(
+                update.winfo_rooty() + update.winfo_height() / 2
+                - selector.winfo_rooty() - selector.winfo_height() / 2
+            ), 2)
+            self.assertLessEqual(update.winfo_rootx() + update.winfo_width(),
+                                 ui.root.winfo_rootx() + ui.root.winfo_width())
+
+        assert_same_row(view.channel_buttons[-1])
+        ui.repository_sources = ui.settings_view.repository_list()[:1] + [
+            {"url": f"https://github.com/example/assets-{index}", "branch": "main"}
+            for index in range(1, 16)
+        ]
+        view.refresh_update_channels()
+        ui.root.update_idletasks()
+        picker = view.channel_picker
+        self.assertEqual(len(picker.cget("values")), 16)
+        assert_same_row(picker)
+        with patch.object(view, "check_program_update") as check:
+            picker.current(15)
+            picker.event_generate("<<ComboboxSelected>>")
+            check.assert_called_once()
+        self.assertEqual(ui.update_channel.get(), 15)
+        ui.busy = True
+        try:
+            ui.update_ready()
+            self.assertEqual(str(picker.cget("state")), "disabled")
+        finally:
+            ui.busy = False
+            ui.update_ready()
+        self.assertEqual(str(picker.cget("state")), "readonly")
 
     def test_switching_channel_invalidates_old_check_and_ignores_late_results(self):
         ui = self.channel_ui()
@@ -321,21 +424,27 @@ class GuiTests(unittest.TestCase):
             error.assert_not_called()
         ui.quick_dialog.close()
 
-    def test_window_and_sidebar_keep_bundled_icons_alive(self):
-        import gc
-        self.assertEqual(set(self.ui.icons), {16, 32, 48, 64, 128, 256})
-        self.assertIs(self.root._switcher_icons, self.ui.icons)
-        for size, image in self.ui.icons.items():
-            self.assertEqual((image.width(), image.height()), (size, size))
-        gc.collect()
+    def test_brand_and_navigation_use_text_without_icon_shapes(self):
+        self.root.update_idletasks()
         for compact in (False, True):
             self.ui.sidebar_compact = compact
             self.ui.draw_brand()
-            items = self.ui.brand.find_withtag("app-icon")
-            self.assertEqual(len(items), 1)
-            self.assertEqual(self.ui.brand.itemcget(items[0], "image"), str(self.ui.icons[32]))
-        names = self.root.tk.splitlist(self.root.tk.call("image", "names"))
-        self.assertTrue(all(str(image) in names for image in self.ui.icons.values()))
+            mark, = self.ui.brand.find_all()
+            self.assertEqual(self.ui.brand.type(mark), "text")
+            self.assertEqual(self.ui.brand.itemcget(mark, "text"), "swicher")
+            for button in self.ui.nav_buttons.values():
+                button.set_compact(compact)
+                background, label = button.find_all()
+                self.assertEqual(button.type(background), "polygon")
+                self.assertEqual(button.type(label), "text")
+                self.assertEqual(button.itemcget(label, "text"), button.short if compact else button.label)
+
+    def test_update_and_config_cards_use_labels_without_icon_canvases(self):
+        ui = self.channel_ui()
+        cards = (ui.program_view.version_banner, ui.config_view.config_count_card,
+                 ui.config_view.config_current_card, ui.config_view.config_read_card)
+        for card in cards:
+            self.assertFalse(any(isinstance(child, tk.Canvas) for child in card.body.winfo_children()))
 
     def test_user_mode_requires_version_check_and_engineer_shortcut_controls_parameters(self):
         import json

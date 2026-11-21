@@ -233,9 +233,11 @@ class Source:
             return origin.read_bytes()
         return self.fetch_bytes(origin)
 
-    def download(self, location, dest, size, expected, cancel, progress):
+    def download(self, location, dest, size, expected, cancel, progress, *, on_attempt=None):
         for attempt in range(1, NETWORK_ATTEMPTS + 1):
             check_cancel(cancel)
+            if on_attempt is not None:
+                on_attempt()
             try:
                 return self._download_once(location, dest, size, expected, cancel, progress)
             except Exception as exc:
@@ -246,6 +248,8 @@ class Source:
                             "Gitee raw 返回 403，尝试官方公开 Blob API（同一文件哈希）：%s；%s 字节", location, size)
                         from publish_switcher.repositories.gitee import download_blob
                         try:
+                            if on_attempt is not None:
+                                on_attempt()
                             return download_blob(self, location, dest, size, expected, cancel, progress)
                         except urllib.error.HTTPError as api_error:
                             api_error.close()

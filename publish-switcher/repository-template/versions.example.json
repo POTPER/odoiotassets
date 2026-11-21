@@ -1,0 +1,25 @@
+{
+  "default_user_visible": true,
+  "rules": [
+    {
+      "prefix": "F",
+      "user_visible": false
+    }
+  ],
+  "versions": {
+    "Standard": {
+      "display_name": "标准配置",
+      "user_visible": true,
+      "order": -20
+    },
+    "教学版本1": {
+      "display_name": "教学演示",
+      "user_visible": true,
+      "order": -10
+    },
+    "赛事版本1": {
+      "display_name": "赛事调试",
+      "user_visible": false
+    }
+  }
+}

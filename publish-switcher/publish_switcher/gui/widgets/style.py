@@ -4,12 +4,11 @@
 """
 import tkinter as tk
 from tkinter import font, ttk
-from publish_switcher.gui.widgets.assets import asset
 
 
 COLORS = {
-    "bg": "#f4f7fe", "sidebar": "#142c51", "panel": "#f8fafc",
-    "sidebar_text": "#f3f7ff", "sidebar_muted": "#b4c6e1",
+    "bg": "#f5f7fa", "sidebar": "#142238", "panel": "#ffffff",
+    "sidebar_text": "#f3f7ff", "sidebar_muted": "#b9c7dc",
     "field": "#ffffff", "hover": "#edf2f7", "border": "#dce2ea",
     "text": "#172033", "muted": "#5e6a7d", "disabled": "#8792a3",
     "accent": "#2563eb", "selection": "#dbeafe", "primary": "#2563eb",
@@ -71,7 +70,7 @@ def apply_theme(root):
               foreground=[("disabled", "#6b7280"), ("!disabled", "#ffffff")],
               bordercolor=[("focus", c["accent"]), ("disabled", c["border"]), ("!disabled", c["primary"])])
     style.layout("Channel.TRadiobutton", style.layout("TButton"))
-    style.configure("Channel.TRadiobutton", padding=(18, 9), background=c["bg"],
+    style.configure("Channel.TRadiobutton", padding=(12, 5), background=c["bg"],
                     foreground=c["text"], bordercolor=c["border"], borderwidth=1, relief="flat")
     style.map("Channel.TRadiobutton", background=[("disabled", c["panel"]), ("selected", c["accent"]), ("active", c["hover"])],
               foreground=[("disabled", c["disabled"]), ("selected", "#ffffff")],
@@ -139,45 +138,10 @@ def style_dialog(window):
     window.bind("<Configure>", fit, add="+")
 
 
-def icon(canvas, name, x, y, color, size=18):
-    s = size / 20
-    def line(*points):
-        canvas.create_line(*[value * s + (x if i % 2 == 0 else y) for i, value in enumerate(points)], fill=color, width=1.5)
-    def rect(a, b, c, d):
-        canvas.create_rectangle(x + a * s, y + b * s, x + c * s, y + d * s, outline=color, width=1.5)
-    if name == "update":
-        line(10, 14, 10, 1, 4, 7)
-        line(10, 1, 16, 7)
-        line(2, 13, 2, 19, 18, 19, 18, 13)
-    elif name == "assets":
-        rect(1, 2, 19, 18)
-        line(2, 16, 7, 10, 11, 14, 15, 9, 19, 14)
-        canvas.create_oval(x + 5*s, y + 5*s, x + 8*s, y + 8*s, fill=color, outline="")
-    elif name == "config":
-        for row, pos in ((4, 6), (10, 14), (16, 8)):
-            line(1, row, 19, row)
-            rect(pos-2, row-2, pos+2, row+2)
-    elif name == "demo":
-        rect(1, 2, 19, 16)
-        line(7, 20, 13, 20)
-        line(10, 16, 10, 20)
-        canvas.create_polygon(x+8*s, y+6*s, x+8*s, y+12*s, x+13*s, y+9*s, fill=color)
-    elif name == "tools":
-        line(3, 17, 15, 5)
-        line(10, 4, 10, 8, 14, 10, 18, 8, 18, 3)
-        line(2, 15, 5, 18)
-    else:
-        canvas.create_oval(x+4*s, y+4*s, x+16*s, y+16*s, outline=color, width=1.5)
-        canvas.create_oval(x+8*s, y+8*s, x+12*s, y+12*s, outline=color, width=1.5)
-        for points in ((10, 0, 10, 4), (10, 16, 10, 20), (0, 10, 4, 10), (16, 10, 20, 10),
-                       (3, 3, 6, 6), (14, 14, 17, 17), (3, 17, 6, 14), (14, 6, 17, 3)):
-            line(*points)
-
-
 class NavButton(tk.Canvas):
-    def __init__(self, master, text, short, symbol, command, family):
+    def __init__(self, master, text, short, command, family):
         super().__init__(master, height=52, background=COLORS["sidebar"], highlightthickness=0, takefocus=1, cursor="hand2")
-        self.label, self.short, self.symbol, self.command, self.family = text, short, symbol, command, family
+        self.label, self.short, self.command, self.family = text, short, command, family
         self.selected = self.hovered = self.focused = self.compact = False
         self.bind("<Configure>", lambda _: self.draw())
         self.bind("<Enter>", lambda _: self.hover(True))
@@ -218,19 +182,13 @@ class NavButton(tk.Canvas):
         width = max(40, self.winfo_width())
         fill = COLORS["accent"] if self.selected else "#203e69" if self.hovered else COLORS["sidebar"]
         ink = COLORS["sidebar_text"] if self.selected or self.hovered else COLORS["sidebar_muted"]
-        rounded(self, 3, 2, width-3, 50, fill=fill, outline=COLORS["accent"] if self.focused else "")
-        if self.selected:
-            self.create_rectangle(3, 16, 6, 36, fill=COLORS["accent"], outline="")
-        photo = asset(self, self.symbol + "-icon-24.png") if self.symbol in ("update", "config") else None
-        if photo:
-            cx, cy = (width/2, 19) if self.compact else (28, 26)
-            self.create_oval(cx-15, cy-15, cx+15, cy+15, fill="#f3f7ff", outline="")
-            self.create_image(cx, cy, image=photo)
-        else:
-            icon(self, self.symbol, (width-18)/2 if self.compact else 19, 9 if self.compact else 16, ink)
-        self.create_text(width/2 if self.compact else 52, 39 if self.compact else 26, text=self.short if self.compact else self.label,
+        height = self.winfo_reqheight()
+        rounded(self, 3, 2, width - 3, height - 2, fill=fill,
+                outline=COLORS["sidebar_text"] if self.focused else "")
+        self.create_text(width / 2 if self.compact else 20, height / 2,
+                         text=self.short if self.compact else self.label,
                          anchor="center" if self.compact else "w", fill=ink,
-                         font=(self.family, 8 if self.compact else 10, "bold" if self.selected else "normal"))
+                         font=(self.family, 9 if self.compact else 10, "bold" if self.selected else "normal"))
 
 
 class StatusBadge(tk.Canvas):

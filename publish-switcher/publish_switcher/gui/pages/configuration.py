@@ -34,12 +34,12 @@ class ConfigurationPage:
             self.config_tree.heading(key, text=title)
             self.config_tree.column(key, width=width, minwidth=80, stretch=key == "issues")
         self.application.scrollable_tree(versions, self.config_tree, horizontal=True)
-        mapping = ttk.LabelFrame(page, text="2. 确认三个文件的替换关系", padding=6)
+        mapping = ttk.LabelFrame(page, text="文件映射", padding=6)
         mapping.grid(row=3, column=0, sticky="ew", pady=8)
         self.config_mapping = ttk.Treeview(mapping, columns=("source", "active", "action"), show="headings", height=3, selectmode="browse")
         self.config_mapping.tag_configure("same", foreground=COLORS["green"], background=COLORS["green_bg"])
         self.config_mapping.tag_configure("different", foreground=COLORS["red"], background=COLORS["red_bg"])
-        for key, title, width in (("source", "版本文件夹内的源 JSON", 390), ("active", "publish 根目录生效文件", 290), ("action", "处理", 80)):
+        for key, title, width in (("source", "源文件", 390), ("active", "生效文件", 290), ("action", "处理", 80)):
             self.config_mapping.heading(key, text=title)
             self.config_mapping.column(key, width=width, minwidth=70, stretch=key == "source")
         self.application.scrollable_tree(mapping, self.config_mapping, horizontal=True)
@@ -63,8 +63,8 @@ class ConfigurationPage:
         for col in range(3):
             overview.columnconfigure(col, weight=1, uniform="overview")
         self.config_count_card = InfoCard(overview, "配置数量", "—", self.application.font_family)
-        self.config_current_card = InfoCard(overview, "当前配置", "未读取", self.application.font_family, kind="config", tone="#efecff", color="#6554c0")
-        self.config_read_card = InfoCard(overview, "读取状态", "未读取", self.application.font_family, kind="check", tone="#eff7f3", color=COLORS["muted"])
+        self.config_current_card = InfoCard(overview, "当前配置", "未读取", self.application.font_family)
+        self.config_read_card = InfoCard(overview, "读取状态", "未读取", self.application.font_family)
         for col, card in enumerate((self.config_count_card, self.config_current_card, self.config_read_card)):
             card.grid(row=0, column=col, sticky="ew", padx=(0, 12) if col < 2 else 0)
         self.config_table = ConfigTable(self.config_user_view, self.application.font_family, self.request_config_apply)

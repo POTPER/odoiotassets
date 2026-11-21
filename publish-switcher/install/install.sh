@@ -133,21 +133,8 @@ def desktop_directory():
             return path
     return None
 data_home = pathlib.Path(os.environ.get('XDG_DATA_HOME', pathlib.Path.home() / '.local/share'))
-icons = data_home / 'icons/hicolor'
-for size in (16, 24, 32, 48, 64, 128, 256, 512):
-    target = icons / ('{0}x{0}/apps'.format(size)) / 'publish-switcher.png'
-    target.parent.mkdir(parents=True, exist_ok=True)
-    source = directory / 'icons' / ('swicher-v10-{}.png'.format(size))
-    if not source.is_file():
-        source = directory / 'icons' / ('publish-switcher-{}.png'.format(size))
-    shutil.copyfile(source, target)
-scalable = icons / 'scalable/apps/publish-switcher.svg'
-scalable.parent.mkdir(parents=True, exist_ok=True)
-source = directory / 'icons/swicher-v10.svg'
-shutil.copyfile(source if source.is_file() else directory / 'icons/publish-switcher.svg', scalable)
 desktop = data_home / 'applications/publish-switcher.desktop'
 desktop.parent.mkdir(parents=True, exist_ok=True)
-icon_path = icons / '256x256/apps/publish-switcher.png'
 launch = [sys.executable, directory / 'switcher.py', 'gui']
 working_directory = directory
 helper_source = directory / 'publish_switcher/updates/bootstrap.py'
@@ -166,7 +153,7 @@ if helper_source.is_file():
 content = ('[Desktop Entry]\nVersion=1.0\nType=Application\nName=swicher\n'
            'Comment=配置与资源管理\nExec=' + ' '.join(quote(arg) for arg in launch) +
            '\nPath=' + entry_value(working_directory) +
-           '\nIcon=' + entry_value(icon_path) + '\nStartupWMClass=PublishSwitcher\nTerminal=false\nCategories=Utility;\n')
+           '\nStartupWMClass=PublishSwitcher\nTerminal=false\nCategories=Utility;\n')
 desktop.write_text(content, encoding='utf-8')
 desktop.chmod(0o755)
 print('已安装应用菜单快捷方式：', desktop)
@@ -197,7 +184,4 @@ else:
     except OSError as exc:
         print('桌面快捷方式更新失败：{}；应用菜单已安装。请检查桌面目录写权限。'.format(exc))
 PY
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-  gtk-update-icon-cache -f -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" >/dev/null 2>&1 || true
-fi
 echo '安装完成。也可以运行：python3 switcher.py gui'

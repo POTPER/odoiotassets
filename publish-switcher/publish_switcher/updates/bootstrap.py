@@ -148,13 +148,15 @@ def commit_update(install):
         raise
 
 
-def launch_update_helper(install, engineer=False):
+def launch_update_helper(install, engineer=False, *, startup=False):
     state = update_state(install)
     helper = state / "apply-update.py"
     shutil.copyfile(Path(__file__), helper)
     command = [sys.executable, "-B", str(helper), "--apply", str(Path(install).absolute())]
     if engineer:
         command.append("--engineer")
+    if startup:
+        command.append("--resume-startup-update")
     options = {"start_new_session": True} if os.name == "posix" else {"creationflags": subprocess.CREATE_NO_WINDOW}
     with (state / "helper.log").open("a", encoding="utf-8") as log:
         return subprocess.Popen(command, cwd=str(state), stdout=log, stderr=log, **options)
@@ -166,6 +168,7 @@ def helper_main():
     action.add_argument("--apply")
     action.add_argument("--launch")
     parser.add_argument("--engineer", action="store_true")
+    parser.add_argument("--resume-startup-update", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     install = Path(args.apply or args.launch)
     with instance_lock(install, timeout=90):
@@ -195,6 +198,8 @@ def helper_main():
     command = [sys.executable, str(install / "switcher.py"), "gui"]
     if args.engineer:
         command.append("--engineer")
+    if args.apply and args.resume_startup_update:
+        command.append("--resume-startup-update")
     os.chdir(install)
     os.execv(sys.executable, command)
 

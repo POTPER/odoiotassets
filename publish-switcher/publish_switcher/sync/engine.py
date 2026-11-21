@@ -84,6 +84,10 @@ class Engine:
         if prefix.startswith(b"version https://git-lfs.github.com/spec/v1") and b"\noid sha256:" in prefix:
             raise SyncError("下载结果是 Git LFS 指针而非实际资源：" + entry["path"])
 
+    @staticmethod
+    def state_path(target):
+        return target.parent / (".publish-switcher-" + target.name)
+
     def __init__(self, target, extensions=None):
         self.extensions = normalize_extensions(extensions)
         raw = Path(target).expanduser().absolute()
@@ -98,7 +102,7 @@ class Engine:
             raise SyncError("目标父目录不存在。")
         if os.path.ismount(self.target):
             raise SyncError("publish 是挂载点，无法通过目录切换同步。")
-        self.state = self.target.parent / (".publish-switcher-" + self.target.name)
+        self.state = self.state_path(self.target)
         if self.state.is_symlink():
             raise SyncError("工具状态目录不能是符号链接。")
         self.state.mkdir(exist_ok=True)
@@ -187,13 +191,15 @@ class Engine:
     def _commit(self, stage, info):
         return transaction._commit(self, stage, info)
 
-    def apply(self, manifest, source, cancel=None, log=lambda msg: None, mode="strict", expected_actual=None, sync_permissions=False, _restore=False, on_commit=None):
+    def apply(self, manifest, source, cancel=None, log=lambda msg: None, mode="strict", expected_actual=None,
+              sync_permissions=False, _restore=False, on_commit=None, *, on_download=None):
         """下载缺失对象并应用更新；strict 会删除范围内多余文件。"""
         validate_manifest(manifest, allow_empty_entries=_restore)
         self.startup_recover()
         with self.lock():
             self.recover()
-            self.preflight()
+            if on_download is None:
+                self.preflight()
             if not _restore:
                 self.save_profile(manifest, source)
             preview = self.preview(manifest, cancel, mode=mode, sync_permissions=sync_permissions, _restore=_restore)
@@ -201,6 +207,8 @@ class Engine:
                 raise SyncError("检查后本地文件发生变化，请重新检查并确认更新。")
             if preview["blocker"]:
                 raise SyncError(preview["blocker"])
+            if on_download is not None and preview["changes"]:
+                self.preflight()
             all_desired = {e["path"]: e for e in manifest["entries"] if e["type"] == "file" and self.manages(e["path"])}
             if not preview["changes"]:
                 log("没有需要更新的文件，未修改 publish。")
@@ -225,6 +233,7 @@ class Engine:
                 raise SyncError(f"磁盘空间不足，需要约 {needed / 1024**2:.1f} MiB 可用空间。")
             stage = self.state / ("stage-" + uuid.uuid4().hex)
             stage.mkdir()
+            downloaded = 0
             try:
                 # Preserve all non-managed resources by hard-linking within this filesystem.
                 # Never chmod or write to these links: the original resource bytes stay intact.
@@ -262,16 +271,26 @@ class Engine:
                                 log("下载：" + e["path"])
                                 count = 0
                                 last_report = 0.0
+
+                                def reset_transfer():
+                                    nonlocal count, last_report
+                                    count, last_report = 0, 0.0
+                                    on_download(downloaded, preview["download_bytes"], True)
+
                                 def progress(n):
                                     nonlocal count, last_report
                                     count += n
                                     now = time.monotonic()
                                     if now - last_report >= 0.25 or count == e["size"]:
                                         log(f"下载进度：{e['path']} {count}/{e['size']} 字节")
+                                        if on_download is not None:
+                                            on_download(downloaded + count, preview["download_bytes"], False)
                                         last_report = now
                                 key = hash_field(e)
                                 expected = ("git:" if key == "git_sha1" else "") + e[key]
-                                source.download(e["source"], self._object(e), e["size"], expected, cancel, progress)
+                                options = {"on_attempt": reset_transfer} if on_download is not None else {}
+                                source.download(e["source"], self._object(e), e["size"], expected, cancel, progress, **options)
+                                downloaded += e["size"]
                             self.validate_object(e, self._object(e))
                             shutil.copyfile(self._object(e), dest)
                         with dest.open("r+b") as stream:

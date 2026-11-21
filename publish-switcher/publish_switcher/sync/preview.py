@@ -4,7 +4,7 @@
 """
 import os
 from publish_switcher.common.errors import SyncError
-from publish_switcher.sync.hashes import content_matches, equivalent
+from publish_switcher.sync.hashes import content_matches, equivalent, hash_field
 from publish_switcher.sync.manifests import validate_manifest
 
 
@@ -18,6 +18,7 @@ def preview(engine, manifest, cancel=None, mode="strict", actual=None, sync_perm
         actual = engine.scope_scan(engine.target, cancel) if engine.target.exists() else {}
     desired = {e["path"]: e for e in manifest["entries"] if e["type"] == "file" and engine.manages(e["path"])}
     changes, downloads, notices, comparison = [], 0, [], []
+    planned_objects = set()
     for path, entry in desired.items():
         old = actual.get(path)
         same_content = content_matches(old, entry)
@@ -43,8 +44,11 @@ def preview(engine, manifest, cancel=None, mode="strict", actual=None, sync_perm
             changes.append(("替换", path))
         if entry["type"] == "file":
             reusable = content_matches(old, entry)
-            if not reusable and not engine.cached(entry, cancel):
+            key = hash_field(entry)
+            object_key = (key, entry[key], entry["size"])
+            if not reusable and object_key not in planned_objects and not engine.cached(entry, cancel):
                 downloads += entry["size"]
+                planned_objects.add(object_key)
     local_only = [path for path, old in actual.items() if old["type"] == "file" and engine.manages(path) and path not in desired]
     comparison += [{"path": p, "status": "仅本地", "incremental": "保留", "strict": "删除"} for p in local_only]
     if mode == "strict":
