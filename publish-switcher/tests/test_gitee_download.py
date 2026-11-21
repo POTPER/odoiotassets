@@ -9,8 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Cancelled, Engine, Source, SyncError, scan
-from gitee_download import MAX_BLOB_FILE_BYTES
+from tools.packaging.legacy.core import Cancelled, Engine, Source, SyncError, scan
+from publish_switcher.repositories.gitee import MAX_BLOB_FILE_BYTES
 from test_network import response
 import test_sync
 
@@ -38,7 +38,7 @@ class GiteeDownloadTests(unittest.TestCase):
         source = self.remote_source()
         dest = self.base / 'Font.ttf'
         progress = []
-        with patch('core.urllib.request.build_opener') as opener:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = [self.forbidden(), response(json.dumps(self.blob(payload)).encode())]
             source.download('publish_RK/中文/Font.ttf', dest, len(payload), 'git:' + self.git_sha(payload), None, progress.append)
             self.assertEqual(opener.return_value.open.call_count, 2)
@@ -53,7 +53,7 @@ class GiteeDownloadTests(unittest.TestCase):
         source = self.remote_source()
         tree = {'truncated': False, 'tree': [{'path': 'publish_RK/font.ttf', 'mode': '100644',
                 'type': 'blob', 'size': len(payload), 'sha': self.git_sha(payload)}]}
-        with patch('core.urllib.request.build_opener') as opener:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = [self.forbidden(), response(json.dumps(tree).encode()),
                                                     response(json.dumps(self.blob(payload)).encode())]
             source.download('publish_RK/font.ttf', self.base / 'font.ttf', len(payload), hashlib.sha256(payload).hexdigest(), None, lambda n: None)
@@ -69,7 +69,7 @@ class GiteeDownloadTests(unittest.TestCase):
         dest = self.base / 'font.ttf'
         dest.write_bytes(b'old cache')
         for mutation in cases:
-            with self.subTest(mutation=mutation), patch('core.urllib.request.build_opener') as opener:
+            with self.subTest(mutation=mutation), patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
                 blob = dict(self.blob(payload), **mutation)
                 opener.return_value.open.side_effect = [self.forbidden(), response(json.dumps(blob).encode())]
                 with self.assertRaises(SyncError):
@@ -78,7 +78,7 @@ class GiteeDownloadTests(unittest.TestCase):
             self.assertFalse(list(self.base.glob('*.part-*')))
 
     def test_api_access_denial_is_reported_without_more_attempts(self):
-        with patch('core.urllib.request.build_opener') as opener, patch('core.retry_pause') as pause:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener, patch('publish_switcher.repositories.source.retry_pause') as pause:
             opener.return_value.open.side_effect = [self.forbidden(), self.forbidden()]
             with self.assertRaisesRegex(SyncError, '官方 Blob API.*HTTP 403'):
                 self.remote_source().download('font.ttf', self.base / 'font.ttf', 10, 'git:' + 'b' * 40, None, lambda n: None)
@@ -88,7 +88,7 @@ class GiteeDownloadTests(unittest.TestCase):
     def test_external_and_github_403_never_use_gitee_fallback(self):
         for source, location in ((self.remote_source(), 'https://example.com/file.ttf?secret=hidden'),
                                  (Source(owner='example', repo='repo', commit='a' * 40), 'font.ttf')):
-            with self.subTest(location=location), patch('core.urllib.request.build_opener') as opener:
+            with self.subTest(location=location), patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
                 opener.return_value.open.side_effect = self.forbidden()
                 with self.assertRaisesRegex(SyncError, 'HTTP 403') as error:
                     source.download(location, self.base / 'font.ttf', 10, 'git:' + 'b' * 40, None, lambda n: None)
@@ -96,7 +96,7 @@ class GiteeDownloadTests(unittest.TestCase):
                 self.assertEqual(opener.return_value.open.call_count, 1)
 
     def test_fallback_is_bounded_and_cancelled_download_cannot_commit(self):
-        with patch('core.urllib.request.build_opener') as opener:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = self.forbidden()
             with self.assertRaisesRegex(SyncError, '32 MiB'):
                 self.remote_source().download('large.ttf', self.base / 'font.ttf', MAX_BLOB_FILE_BYTES + 1,
@@ -104,7 +104,7 @@ class GiteeDownloadTests(unittest.TestCase):
             self.assertEqual(opener.return_value.open.call_count, 1)
         payload = b'font'
         cancel = threading.Event()
-        with patch('core.urllib.request.build_opener') as opener:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = [self.forbidden(), response(json.dumps(self.blob(payload)).encode())]
             with self.assertRaises(Cancelled):
                 self.remote_source().download('font.ttf', self.base / 'font.ttf', len(payload), 'git:' + self.git_sha(payload),
@@ -119,7 +119,7 @@ class GiteeDownloadTests(unittest.TestCase):
             {'type': 'file', 'path': name, 'mode': '0644', 'size': len(payload), 'git_sha1': sha,
              'source': 'publish_RK/' + name} for name in ('font1.ttf', 'font2.ttf')]}
         engine = Engine(self.target, extensions=['.ttf'])
-        with patch('core.urllib.request.build_opener') as opener:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = [self.forbidden(), response(json.dumps(self.blob(payload)).encode())]
             engine.apply(manifest, self.remote_source())
             self.assertEqual(opener.return_value.open.call_count, 2)
@@ -135,7 +135,7 @@ class GiteeDownloadTests(unittest.TestCase):
         before = scan(self.target)
         blob = self.blob(payload)
         blob['content'] = base64.b64encode(payload[:3]).decode()
-        with patch('core.urllib.request.build_opener') as opener:
+        with patch('publish_switcher.repositories.source.urllib.request.build_opener') as opener:
             opener.return_value.open.side_effect = [self.forbidden(), response(json.dumps(blob).encode())]
             with self.assertRaises(SyncError):
                 Engine(self.target).apply(manifest, self.remote_source())

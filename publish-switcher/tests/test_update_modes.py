@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import test_sync
-from core import Engine, SyncError
+from tools.packaging.legacy.core import Engine, SyncError
 
 
 class UpdateModeTests(unittest.TestCase):

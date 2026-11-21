@@ -12,9 +12,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if tk is not None:
-    import app
-from core import Source
-from core import Engine
+    from publish_switcher.gui import app as app
+from tools.packaging.legacy.core import Source
+from tools.packaging.legacy.core import Engine
 
 
 @unittest.skipIf(tk is None, "Tkinter is not installed")
@@ -42,6 +42,285 @@ class GuiTests(unittest.TestCase):
             time.sleep(0.01)
         self.assertFalse(self.ui.busy, "UI worker did not finish")
 
+    def channel_ui(self):
+        window = tk.Toplevel(self.root)
+        window.withdraw()
+        self.addCleanup(window.destroy)
+        with patch.object(app, "CONFIG", Path(__file__).parent / "nonexistent-settings.json"):
+            ui = app.Application(window, engineer=False, updates=True)
+        window.after_cancel(ui.program_view.program_check_id)
+        ui.program_view.program_check_id = None
+        return ui
+
+    def pump_ui(self, ui, seconds=5):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            self.root.update()
+            if not ui.busy and not ui.config_view.config_refreshing:
+                self.root.update_idletasks()
+                return
+            time.sleep(.01)
+        self.fail("UI job did not finish")
+
+    def test_reference_config_rows_apply_real_three_file_bundle_and_protect_changed_sources(self):
+        from test_config_versions import write_bundle
+        import test_sync
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
+            target = Path(directory) / "publish"
+            target.mkdir()
+            original = write_bundle(target, "原配置")
+            new = write_bundle(target, "教学")
+            for name, payload in original.items():
+                (target / name).write_bytes(payload)
+            ui = self.channel_ui()
+            ui.target.set(str(target))
+            ui.engine = Engine(target)
+            ui.program_checked = True
+            ui.configure_access()
+            ui.config_view.refresh_config_choices()
+            self.pump_ui(ui)
+            self.assertEqual(ui.config_view.config_count_card.value.cget("text"), "2 个")
+            self.assertEqual(ui.config_view.config_current_card.value.cget("text"), "原配置")
+            self.assertEqual(ui.config_view.config_read_card.value.cget("text"), "配置可读")
+            self.assertEqual(str(ui.config_view.config_table.rows["原配置"]["button"].cget("state")), "disabled")
+            self.assertEqual(ui.config_view.config_table.rows["教学"]["cells"]["release_version"].cget("text"), "—")
+            with patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True), patch("publish_switcher.sync.engine.assert_stopped"):
+                ui.config_view.config_table.rows["教学"]["button"].invoke()
+                self.pump_ui(ui)
+            self.assertEqual(ui.config_view.config_current_card.value.cget("text"), "教学")
+            for name, payload in new.items():
+                self.assertEqual((target / name).read_bytes(), payload)
+                self.assertEqual((target / "config/教学" / name).read_bytes(), payload)
+            before = {name: (target / name).read_bytes() for name in original}
+            def change_source(*args, **kwargs):
+                (target / "config/原配置/TrainTaskInfo.json").write_bytes(b"[]")
+                return True
+            with patch("publish_switcher.gui.app.messagebox.askyesno", side_effect=change_source), patch("publish_switcher.gui.app.messagebox.showerror") as error, patch("publish_switcher.sync.engine.assert_stopped"):
+                ui.config_view.config_table.rows["原配置"]["button"].invoke()
+                self.pump_ui(ui)
+                error.assert_called_once()
+            self.assertEqual({name: (target / name).read_bytes() for name in original}, before)
+
+    def test_reference_layout_at_small_and_large_sizes_preserves_actions_and_scrolls(self):
+        ui = self.channel_ui()
+        ui.program_checked = True
+        ui.configure_access()
+        ui.pages.select(ui.config_page)
+        rows = [dict(version="配置" + str(i), display_name="中文名称较长的教学配置" + str(i), valid=True,
+                     active=i == 0, release_version="v1.2.0", updated_at="2026-11-20 12:34:56", description="可选说明"*15)
+                for i in range(30)]
+        ui.config_view.config_table.set_items(rows)
+        ui.root.deiconify()
+        for width, height in ((1240, 720), (1100, 640), (900, 640)):
+            ui.root.geometry("{}x{}".format(width, height))
+            self.root.update()
+            button = ui.config_view.config_table.rows["配置1"]["button"]
+            right = ui.root.winfo_rootx() + ui.root.winfo_width()
+            self.assertLessEqual(button.winfo_rootx()+button.winfo_width(), right-10)
+            self.assertGreater(button.winfo_width(), 30)
+            self.assertEqual(ui.config_view.config_table.heads["updated_at"].winfo_manager(), "" if width < 1100 else "grid")
+        ui.config_view.config_table.focus_row(29)
+        self.root.update()
+        self.assertGreater(ui.config_view.config_table.canvas.yview()[0], 0)
+        self.assertTrue(ui.config_view.config_table.enabled)
+        ui.config_view.config_table.set_enabled(False)
+        self.assertTrue(all(str(row["button"].cget("state")) == "disabled" for row in ui.config_view.config_table.rows.values()))
+        ui.root.withdraw()
+
+    def test_reference_generated_assets_load_without_runtime_pillow_and_survive_gc(self):
+        import gc
+        from publish_switcher.gui.widgets.assets import asset
+        ui = self.channel_ui()
+        for name, size in (("update-icon-24.png", 24), ("config-icon-40.png", 40), ("update-hero-112.png", 112)):
+            photo = asset(ui.root, name)
+            self.assertEqual((photo.width(), photo.height()), (size, size))
+        self.assertIsNotNone(ui.program_view.version_banner.hero)
+        gc.collect()
+        self.assertIs(asset(ui.root, "update-hero-112.png"), ui.program_view.version_banner.hero)
+        self.assertIsNotNone(asset(ui.root, "sidebar-background-v10.png", cover=(206, 1080)))
+        ui.program_view.version_banner.set_state("idle", "—")
+        self.assertEqual(ui.program_view.version_banner.checked.get(), "—")
+        rows, address = ui.program_view.program_channel()
+        ui.program_view.program_check_finished((address, ({"version": app.VERSION, "notes": "ok"}, False), None, rows))
+        self.assertEqual(ui.program_view.version_banner.state, "current")
+        checked = ui.program_view.version_banner.checked.get()
+        self.assertNotEqual(checked, "—")
+        ui.program_view.program_check_finished((address, None, "network failure", rows))
+        self.assertEqual(ui.program_view.version_banner.state, "error")
+        self.assertEqual(ui.program_view.version_banner.checked.get(), checked)
+
+    def test_reference_metadata_editor_retains_fields_while_changing_visibility(self):
+        from publish_switcher.gui.widgets.config_visibility import show_visibility_editor
+        from tools.packaging.legacy.core import atomic_json, read_json
+        from test_config_versions import write_bundle
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
+            target = Path(directory) / "publish"
+            write_bundle(target, "教学")
+            policy = {"versions": {"教学": {"release_version": "v1.2.0", "updated_at": "2026-11-20", "description": "说明"}}}
+            atomic_json(target / "config/versions.json", policy)
+            editor = show_visibility_editor(self.root, Engine(target), lambda: None)
+            editor.version_table.selection_set("教学")
+            self.root.update()
+            self.assertEqual(editor.metadata_fields["release_version"].get(), "v1.2.0")
+            editor.metadata_fields["description"].set("修改后的说明")
+            def descendants(widget):
+                for child in widget.winfo_children():
+                    yield child
+                    yield from descendants(child)
+            buttons = [widget for widget in descendants(editor) if widget.winfo_class() == "TButton"]
+            next(widget for widget in buttons if widget.cget("text") == "应用到此目录").invoke()
+            next(widget for widget in buttons if widget.cget("text") == "保存全部设置").invoke()
+            saved = read_json(target / "config/versions.json")["versions"]["教学"]
+            self.assertEqual(saved["release_version"], "v1.2.0")
+            self.assertEqual(saved["updated_at"], "2026-11-20")
+            self.assertEqual(saved["description"], "修改后的说明")
+
+    def test_reference_stale_summary_cannot_replace_new_target_and_invalid_rules_clear_rows(self):
+        import threading
+        from test_config_versions import write_bundle
+        from tools.packaging.legacy.core import atomic_json
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
+            base = Path(directory)
+            old, new = base / "old-publish", base / "new-publish"
+            write_bundle(old, "旧目录版本")
+            write_bundle(new, "新目录版本")
+            ui = self.channel_ui()
+            ui.program_checked = True
+            ui.target.set(str(old))
+            ui.engine = old_engine = Engine(old)
+            ui.configure_access()
+            arrived, release = threading.Event(), threading.Event()
+            original = old_engine.config_summary
+            def delayed(*args, **kwargs):
+                arrived.set()
+                release.wait(4)
+                return original(*args, **kwargs)
+            with patch.object(old_engine, "config_summary", side_effect=delayed):
+                ui.config_view.refresh_config_choices()
+                self.assertTrue(arrived.wait(2))
+                ui.target.set(str(new))
+                ui.engine = Engine(new)
+                release.set()
+                self.pump_ui(ui)
+            self.assertEqual(set(ui.config_view.config_table.rows), {"新目录版本"})
+            atomic_json(new / "config/versions.json", {"versions": {"新目录版本": {"release_version": 10}}})
+            ui.config_view.refresh_config_choices()
+            self.pump_ui(ui)
+            self.assertEqual(ui.config_view.config_table.rows, {})
+            self.assertEqual(ui.config_view.config_read_card.value.cget("text"), "读取失败")
+
+    def test_swicher_white_shell_has_no_idle_status_badges_and_notes_are_collapsed(self):
+        ui = self.channel_ui()
+        self.assertEqual(ui.root.title(), "swicher")
+        self.assertEqual(ui.root.cget("background"), app.COLORS["bg"])
+        for widget in (ui.phase_badge, ui.status_label, ui.cancel_button, ui.progress, ui.program_view.program_notes_label):
+            self.assertEqual(widget.winfo_manager(), "")
+        self.assertEqual(ui.caption_label.winfo_manager(), "grid")
+        ui.program_view.program_notes.set("完整错误和版本说明")
+        self.assertEqual(ui.program_view.program_details_button.winfo_manager(), "")
+        ui.program_view.program_details_button.invoke()
+        self.assertEqual(ui.program_view.program_notes_label.winfo_manager(), "")
+        ui.toggle_engineer()
+        self.assertEqual(ui.program_view.program_details_button.winfo_manager(), "pack")
+        ui.program_view.program_details_button.invoke()
+        self.assertEqual(ui.program_view.program_notes_label.winfo_manager(), "grid")
+        ui.program_view.program_details_button.invoke()
+        self.assertEqual(ui.program_view.program_notes_label.winfo_manager(), "")
+
+    def test_user_shell_only_exposes_update_and_config_without_status_or_details(self):
+        ui = self.channel_ui()
+        ui.program_checked = True
+        ui.configure_access()
+        expected = {str(ui.program_page), str(ui.config_page)}
+        visible = {key for key, button in ui.nav_buttons.items() if button.winfo_manager()}
+        self.assertEqual(visible, expected)
+        self.assertEqual(ui.pages.tab(ui.demo_page, "state"), "hidden")
+        ui.program_view.program_status.set("请联系工程师设置设备。")
+        ui.program_view.program_notes.set("完整发布说明")
+        ui.status.set("已返回用户界面。")
+        ui.last_error = True
+        ui.update_ready()
+        for widget in (ui.program_view.program_status_label, ui.program_view.program_details_button, ui.program_view.program_notes_label, ui.status_label, ui.footer):
+            self.assertEqual(widget.winfo_manager(), "")
+        ui.set_log_visible(True)
+        self.assertFalse(ui.log_visible)
+        self.assertEqual(ui.log_output.winfo_manager(), "")
+        ui.toggle_engineer()
+        self.assertEqual(ui.pages.tab(ui.demo_page, "state"), "normal")
+        self.assertEqual(ui.program_view.program_status_label.winfo_manager(), "grid")
+        self.assertEqual(ui.footer.winfo_manager(), "pack")
+        layout = ui.workspace.pack_slaves()
+        self.assertLess(layout.index(ui.footer), layout.index(ui.pages))
+        ui.program_view.toggle_program_notes()
+        self.assertEqual(ui.program_view.program_notes_label.winfo_manager(), "grid")
+        ui.toggle_engineer()
+        self.assertEqual(ui.program_view.program_notes_label.winfo_manager(), "")
+        self.assertEqual({key for key, button in ui.nav_buttons.items() if button.winfo_manager()}, expected)
+
+    def test_update_channels_follow_repository_order_and_reset_to_first_when_changed(self):
+        ui = self.channel_ui()
+        self.assertEqual(ui.update_channel.get(), 0)
+        self.assertEqual([str(b.cget("text")) for b in ui.program_view.channel_buttons], ["通道一", "通道二"])
+        rows = ui.settings_view.repository_list()
+        self.assertIn("gitee.com", ui.program_view.program_channel()[0][0]["url"])
+        ui.update_channel.set(1)
+        self.assertIn("github.com", ui.program_view.program_channel()[0][0]["url"])
+        reordered = [rows[1], rows[0], {"url": "https://jihulab.com/group/assets", "branch": "main"}]
+        ui.repository_sources = reordered
+        ui.repo.set(reordered[0]["url"])
+        ui.branch.set(reordered[0]["branch"])
+        ui.program_view.refresh_update_channels()
+        self.assertEqual(ui.update_channel.get(), 0)
+        self.assertEqual(len(ui.program_view.channel_buttons), 3)
+        self.assertIn("github.com", ui.program_view.program_channel()[0][0]["url"])
+        ui.update_channel.set(2)
+        ui.repository_sources = reordered[:1]
+        ui.program_view.refresh_update_channels()
+        self.assertEqual(len(ui.program_view.channel_buttons), 1)
+        self.assertEqual(ui.update_channel.get(), 0)
+
+    def test_switching_channel_invalidates_old_check_and_ignores_late_results(self):
+        ui = self.channel_ui()
+        old_rows, old_address = ui.program_view.program_channel()
+        ui.program_view.program_release = {"version": "2099.1"}
+        ui.program_checked = True
+        with patch.object(ui.program_view, "check_program_update") as check:
+            ui.program_view.channel_buttons[1].invoke()
+        check.assert_called_once()
+        self.assertEqual(ui.update_channel.get(), 1)
+        self.assertIsNone(ui.program_view.program_release)
+        self.assertFalse(ui.program_checked)
+        with patch.object(ui.program_view, "check_program_update") as recheck:
+            ui.program_view.program_check_finished((old_address, ({"version": app.VERSION, "notes": "stale"}, False), None, old_rows))
+        recheck.assert_called_once()
+        self.assertFalse(ui.program_checked)
+        self.assertNotEqual(ui.program_view.program_notes.get(), "stale")
+        current_rows, current_address = ui.program_view.program_channel()
+        ui.program_view.program_check_finished((current_address, ({"version": app.VERSION, "notes": "current"}, False), None, current_rows))
+        self.assertTrue(ui.program_checked)
+        self.assertEqual(ui.pages.select(), str(ui.program_page))
+
+    def test_quick_update_uses_only_selected_channel_and_locks_channel_buttons(self):
+        ui = self.channel_ui()
+        ui.update_channel.set(1)
+        failure = dict(success=False, publish="未更新", program="未更新", error="selected channel failed")
+        with patch("publish_switcher.updates.unified.run_update", return_value=failure) as update, patch("publish_switcher.gui.app.messagebox.showerror") as error:
+            ui.program_view.start_quick_update()
+            self.assertTrue(all(str(button.cget("state")) == "disabled" for button in ui.program_view.channel_buttons))
+            deadline = time.monotonic() + 4
+            while ui.busy and time.monotonic() < deadline:
+                self.root.update()
+                time.sleep(.01)
+            self.assertFalse(ui.busy)
+            self.assertEqual(len(update.call_args.kwargs["repositories"]), 1)
+            self.assertIn("github.com", update.call_args.kwargs["repositories"][0]["url"])
+            self.assertIn("raw.githubusercontent.com", update.call_args.kwargs["release_url"])
+            self.assertEqual(ui.update_channel.get(), 1)
+            self.assertEqual(ui.quick_dialog.message.get(), "更新未完成")
+            self.assertTrue(all(str(button.cget("state")) == "normal" for button in ui.program_view.channel_buttons))
+            error.assert_not_called()
+        ui.quick_dialog.close()
+
     def test_window_and_sidebar_keep_bundled_icons_alive(self):
         import gc
         self.assertEqual(set(self.ui.icons), {16, 32, 48, 64, 128, 256})
@@ -67,27 +346,27 @@ class GuiTests(unittest.TestCase):
             release = {"version": app.VERSION, "notes": "checked"}
             settings = base / "settings.json"
             settings.write_text(json.dumps({"custom_setting": True}), encoding="utf-8")
-            with patch.object(app, "CONFIG", settings), patch("tool_update.check_release", return_value=(release, False)):
+            with patch.object(app, "CONFIG", settings), patch("publish_switcher.updates.release.check_release", return_value=(release, False)):
                 ui = app.Application(window, engineer=False, updates=True)
-                window.after_cancel(ui.program_check_id)
-                ui.program_check_id = None
+                window.after_cancel(ui.program_view.program_check_id)
+                ui.program_view.program_check_id = None
                 self.assertEqual(ui.pages.select(), str(ui.program_page))
                 self.assertEqual(ui.pages.tab(ui.config_page, "state"), "hidden")
                 called = []
                 ui.run(lambda: called.append(True), lambda value: None)
                 self.assertFalse(called)
-                ui.program_check_finished((ui.program_source.get(), (release, False), None))
+                ui.program_view.program_check_finished((ui.program_source.get(), (release, False), None))
                 self.assertEqual(ui.pages.tab(ui.config_page, "state"), "normal")
                 self.assertEqual(ui.pages.tab(ui.settings_page, "state"), "hidden")
                 self.assertEqual(ui.pages.tab(ui.update_page, "state"), "hidden")
-                self.assertEqual(ui.quick_update_button.winfo_manager(), "grid")
+                self.assertEqual(ui.quick_update_button.winfo_manager(), "")
                 self.assertEqual(ui.location_bar.winfo_manager(), "")
-                self.assertEqual(ui.diff_tree.cget("displaycolumns"), ("status", "path"))
+                self.assertEqual(ui.files_view.diff_tree.cget("displaycolumns"), ("status", "path"))
                 ui.toggle_engineer()
                 self.assertEqual(ui.pages.select(), str(ui.settings_page))
                 self.assertEqual(ui.location_bar.winfo_manager(), "pack")
                 ui.program_source.set("https://example.org/new-update.json")
-                ui.save_program_source()
+                ui.program_view.save_program_source()
                 self.assertFalse(ui.program_checked)
                 self.assertTrue(json.loads(settings.read_text())["custom_setting"])
                 self.assertEqual(json.loads(settings.read_text())["program_update_url"], ui.program_source.get())
@@ -110,8 +389,8 @@ class GuiTests(unittest.TestCase):
             window.destroy()
 
     def test_quick_update_runs_without_selection_and_refreshes_filtered_configs(self):
-        from generate import generate
-        from core import read_json, load_profile
+        from publish_switcher.repositories.generate import generate
+        from tools.packaging.legacy.core import read_json, load_profile
         from test_config_versions import write_bundle
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
             base = Path(directory)
@@ -128,26 +407,26 @@ class GuiTests(unittest.TestCase):
             window = tk.Toplevel(self.root)
             window.withdraw()
             with patch.object(app, "CONFIG", base / "settings.json"), \
-                    patch("unified_update.discover", return_value=[{"source": origin, "manifest": manifest}]), \
-                    patch("tool_update.check_release", return_value=({"version": app.VERSION, "notes": "same"}, False)), \
-                    patch("core.assert_stopped"), patch("app.messagebox.showerror") as error:
+                    patch("publish_switcher.updates.unified.discover", return_value=[{"source": origin, "manifest": manifest}]), \
+                    patch("publish_switcher.updates.release.check_release", return_value=({"version": app.VERSION, "notes": "same"}, False)), \
+                    patch("publish_switcher.sync.engine.assert_stopped"), patch("publish_switcher.gui.app.messagebox.showerror") as error:
                 ui = app.Application(window, engineer=False, updates=True)
-                window.after_cancel(ui.program_check_id)
-                ui.program_check_id = None
+                window.after_cancel(ui.program_view.program_check_id)
+                ui.program_view.program_check_id = None
                 ui.target.set(str(target))
                 ui.install_directory = base / "installed-tool"
                 ui.install_directory.mkdir()
-                ui.start_quick_update()
+                ui.program_view.start_quick_update()
                 deadline = time.monotonic() + 8
                 while time.monotonic() < deadline:
                     self.root.update()
-                    if not ui.busy and ui.engine and ui.config_tree.get_children() == ("教学",):
+                    if not ui.busy and ui.engine and ui.config_view.config_tree.get_children() == ("教学",):
                         break
                     time.sleep(.01)
                 self.assertFalse(ui.busy)
                 self.assertTrue((target / "new.py").exists(), ui.quick_dialog.summary.get())
                 self.assertEqual(ui.pages.select(), str(ui.config_page))
-                self.assertEqual(ui.config_tree.get_children(), ("教学",))
+                self.assertEqual(ui.config_view.config_tree.get_children(), ("教学",))
                 self.assertFalse(ui.quick_dialog.running)
                 self.assertEqual(ui.quick_dialog.message.get(), "更新完成")
                 self.assertIn("更新成功", ui.quick_dialog.summary.get())
@@ -157,7 +436,7 @@ class GuiTests(unittest.TestCase):
             window.destroy()
 
     def test_quick_dialog_failure_retry_and_commit_cannot_cancel(self):
-        from update_dialog import UpdateDialog
+        from publish_switcher.gui.widgets.update_dialog import UpdateDialog
         dialog = UpdateDialog(self.ui)
         self.ui.quick_dialog = dialog
         dialog.begin()
@@ -181,19 +460,19 @@ class GuiTests(unittest.TestCase):
         with patch.object(app, "CONFIG", Path(__file__).parent / "nonexistent-settings.json"):
             ui = app.Application(window, engineer=False, updates=True)
         release = {"version": "2099.1", "notes": "Required release"}
-        ui.program_check_finished((ui.program_source.get(), (release, True), None))
+        ui.program_view.program_check_finished((ui.program_source.get(), (release, True), None))
         self.assertFalse(ui.program_checked)
         self.assertEqual(ui.pages.tab(ui.demo_page, "state"), "hidden")
-        self.assertEqual(str(ui.program_apply_button.cget("state")), "normal")
-        ui.program_check_finished((ui.program_source.get(), None, "network unavailable"))
+        self.assertEqual(str(ui.program_view.program_apply_button.cget("state")), "normal")
+        ui.program_view.program_check_finished((ui.program_source.get(), None, "network unavailable"))
         self.assertFalse(ui.program_checked)
-        self.assertIn("network unavailable", ui.program_notes.get())
+        self.assertIn("network unavailable", ui.program_view.program_notes.get())
         window.destroy()
 
     def test_user_config_visibility_alias_and_engineer_editor(self):
         from test_config_versions import write_bundle
-        from config_visibility_ui import show_visibility_editor
-        from core import atomic_json
+        from publish_switcher.gui.widgets.config_visibility import show_visibility_editor
+        from tools.packaging.legacy.core import atomic_json
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent / ".tmp") as directory:
             target = Path(directory) / "publish"
             target.mkdir()
@@ -207,17 +486,17 @@ class GuiTests(unittest.TestCase):
             self.ui.target.set(str(target))
             self.ui.engine = Engine(target)
             self.ui.engineer_mode = False
-            self.ui.refresh_config_choices()
+            self.ui.config_view.refresh_config_choices()
             self.wait_job()
             self.root.update()
-            self.assertEqual(self.ui.config_tree.get_children(), ("教学",))
-            self.assertEqual(self.ui.config_tree.item("教学", "values")[0], "课堂版")
+            self.assertEqual(self.ui.config_view.config_tree.get_children(), ("教学",))
+            self.assertEqual(self.ui.config_view.config_tree.item("教学", "values")[0], "课堂版")
             self.assertEqual(self.ui.task_mode.get(), "配置版本：实施配置")
             self.ui.engineer_mode = True
-            self.ui.refresh_config_choices()
+            self.ui.config_view.refresh_config_choices()
             self.wait_job()
-            self.assertIn("F内部测试", self.ui.config_tree.get_children())
-            editor = show_visibility_editor(self.root, self.ui.engine, self.ui.refresh_config_choices)
+            self.assertIn("F内部测试", self.ui.config_view.config_tree.get_children())
+            editor = show_visibility_editor(self.root, self.ui.engine, self.ui.config_view.refresh_config_choices)
             self.root.update_idletasks()
             self.assertEqual(editor.title(), "配置版本显示设置")
             def descendants(widget):
@@ -242,14 +521,14 @@ class GuiTests(unittest.TestCase):
                  child.cget("text") == "保存全部设置").invoke()
             self.wait_job()
             self.ui.engineer_mode = False
-            self.ui.refresh_config_choices()
+            self.ui.config_view.refresh_config_choices()
             self.wait_job()
-            self.assertEqual(self.ui.config_tree.item("F内部测试", "values")[0], "公开配置")
+            self.assertEqual(self.ui.config_view.config_tree.item("F内部测试", "values")[0], "公开配置")
             self.assertEqual(self.ui.task_mode.get(), "配置版本：公开配置")
 
     def test_format_checkboxes_discover_save_and_invalidate_preview(self):
-        from generate import generate
-        from core import read_json
+        from publish_switcher.repositories.generate import generate
+        from tools.packaging.legacy.core import read_json
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent / '.tmp') as directory:
             base = Path(directory)
             original = base / 'source'
@@ -264,7 +543,7 @@ class GuiTests(unittest.TestCase):
             settings = base / 'settings.json'
             settings.write_text('{"repo":"keep me","other":123}', encoding='utf-8')
             with patch.object(app, 'CONFIG', settings):
-                dialog = self.ui.show_formats(read_json(manifest_path))
+                dialog = self.ui.files_view.show_formats(read_json(manifest_path))
                 self.assertTrue(dialog.format_variables['.ttf'].get())
                 self.assertFalse(dialog.format_variables['.otf'].get())
                 dialog.format_variables['.ttf'].set(False)
@@ -283,15 +562,15 @@ class GuiTests(unittest.TestCase):
 
     def test_window_and_catalog_render(self):
         catalog = {"profiles": [{"id": "test", "name": "比赛版", "version": "1", "manifest": "manifest.json", "sha256": "a" * 64}]}
-        self.ui.receive_catalog((Source(local=Path(__file__).parent), catalog))
+        self.ui.settings_view.receive_catalog((Source(local=Path(__file__).parent), catalog))
         self.root.update()
-        self.assertEqual(len(self.ui.tree.get_children()), 1)
-        self.assertIn("比赛版", self.ui.tree.item("0")["values"])
+        self.assertEqual(len(self.ui.files_view.tree.get_children()), 1)
+        self.assertIn("比赛版", self.ui.files_view.tree.item("0")["values"])
 
     def test_defaults_remain_editable(self):
         self.assertEqual(self.ui.repo.get(), "https://gitee.com/potper/odoiotassets")
         self.assertEqual([p["name"] for p in self.ui.presets], ["Jetson", "RK"])
-        self.assertEqual(len(self.ui.tree.get_children()), 2)
+        self.assertEqual(len(self.ui.files_view.tree.get_children()), 2)
         self.ui.repo.set("https://github.com/example/another")
         self.assertEqual(self.ui.repo.get(), "https://github.com/example/another")
 
@@ -325,7 +604,7 @@ class GuiTests(unittest.TestCase):
         self.wait_job()
         self.assertEqual(self.ui.phase_badge.phase, "idle")
 
-    def test_dark_theme_keeps_text_and_diff_colours_readable(self):
+    def test_light_theme_keeps_text_and_diff_colours_readable(self):
         from tkinter import ttk
         def brightness(colour):
             channels = [int(colour[i:i+2], 16) / 255 for i in (1, 3, 5)]
@@ -334,23 +613,23 @@ class GuiTests(unittest.TestCase):
         def contrast(a, b):
             light, dark = sorted((brightness(a), brightness(b)), reverse=True)
             return (light + .05) / (dark + .05)
-        for text in (self.ui.text, self.ui.demo_text):
+        for text in (self.ui.text, self.ui.demo_page.demo_text):
             self.assertGreater(contrast(text.cget("foreground"), text.cget("background")), 4.5)
         style = ttk.Style(self.root)
         self.assertGreater(contrast(style.lookup("Treeview", "foreground"), style.lookup("Treeview", "background")), 4.5)
         for tag in ("same", "different", "permission"):
-            options = self.ui.diff_tree.tag_configure(tag)
+            options = self.ui.files_view.diff_tree.tag_configure(tag)
             self.assertGreater(contrast(options["foreground"], options["background"]), 4.5)
         self.assertNotIn("Notebook.label", str(style.layout("Workspace.TNotebook.Tab")))
         self.assertIn("Notebook.label", str(style.layout("TNotebook.Tab")))  # Dialog tabs remain visible.
 
     def test_theme_accepts_python38_font_lookup_signature(self):
-        import switcher_style
+        from publish_switcher.gui.widgets import style as switcher_style
         original = switcher_style.font.nametofont
         # Verified against CPython v3.8.10/Lib/tkinter/font.py: def nametofont(name).
         def legacy_nametofont(name):
             return original(name)
-        with patch("switcher_style.font.nametofont", side_effect=legacy_nametofont):
+        with patch("publish_switcher.gui.widgets.style.font.nametofont", side_effect=legacy_nametofont):
             family = switcher_style.apply_theme(self.root)
             self.root.update()
         self.assertTrue(family)
@@ -358,8 +637,8 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.ui.nav_buttons[str(self.ui.settings_page)].label, "设置")
 
     def test_pages_and_update_requires_check_then_choice(self):
-        from generate import generate
-        from core import read_json, load_profile
+        from publish_switcher.repositories.generate import generate
+        from tools.packaging.legacy.core import read_json, load_profile
         temp_root = Path(__file__).resolve().parent / ".tmp"
         temp_root.mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(dir=temp_root) as directory:
@@ -378,23 +657,23 @@ class GuiTests(unittest.TestCase):
             self.ui.target.set(str(target))
             self.ui.profiles = [{"manifest": manifest, "source": origin}]
             self.ui.show_profiles()
-            self.ui.tree.selection_set("0")
+            self.ui.files_view.tree.selection_set("0")
             self.root.update()
             self.assertEqual([self.ui.pages.tab(t, "text") for t in self.ui.pages.tabs()],
                              ["更新文件", "Assets 资源", "配置切换", "IoT Demo", "辅助工具", "设置"])
-            self.assertEqual(str(self.ui.apply_button.cget("state")), "disabled")
-            self.ui.preview()
+            self.assertEqual(str(self.ui.files_view.apply_button.cget("state")), "disabled")
+            self.ui.files_view.preview()
             self.wait_job()
             self.root.update()
             self.assertIsNotNone(self.ui.checked)
-            self.assertEqual(str(self.ui.apply_button.cget("state")), "normal")
-            self.assertEqual(len(self.ui.diff_tree.get_children()), 2)
+            self.assertEqual(str(self.ui.files_view.apply_button.cget("state")), "normal")
+            self.assertEqual(len(self.ui.files_view.diff_tree.get_children()), 2)
             self.assertIn("增量更新", self.ui.update_summary.get())
-            self.ui.mode_buttons[1].invoke()
+            self.ui.files_view.mode_buttons[1].invoke()
             self.assertEqual(self.ui.update_mode.get(), "strict")
             self.assertIn("严格更新", self.ui.update_summary.get())
-            with patch("app.messagebox.askyesno", return_value=True):
-                self.ui.apply()
+            with patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True):
+                self.ui.files_view.apply()
                 self.wait_job()
             self.assertEqual((target / "script.py").read_bytes(), b"remote")
             self.assertFalse((target / "extra.json").exists())
@@ -407,19 +686,20 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.ui.log_visible)
         self.ui.append("折叠期间也记录日志")
         for page, widgets in (
-                (self.ui.update_page, (self.ui.check_button, self.ui.apply_button, self.ui.diff_tree)),
-                (self.ui.assets_page, (self.ui.assets_check_button, self.ui.assets_apply_button, self.ui.assets_tree)),
-                (self.ui.config_page, (self.ui.config_apply_button, self.ui.config_compare_button, self.ui.config_mapping)),
-                (self.ui.demo_page, (self.ui.demo_run_button, self.ui.demo_checked_button, self.ui.demo_skip_button, self.ui.demo_stop_button,
-                                     self.ui.demo_queue_bar, self.ui.demo_log_filter, self.ui.demo_grid, self.ui.demo_text)),
+                (self.ui.update_page, (self.ui.files_view.check_button, self.ui.files_view.apply_button, self.ui.files_view.diff_tree)),
+                (self.ui.assets_page, (self.ui.assets_view.assets_check_button, self.ui.assets_view.assets_apply_button, self.ui.assets_view.assets_tree)),
+                (self.ui.config_page, (self.ui.config_view.config_apply_button, self.ui.config_view.config_compare_button, self.ui.config_view.config_mapping)),
+                (self.ui.demo_page, (self.ui.demo_page.demo_run_button, self.ui.demo_page.demo_checked_button, self.ui.demo_page.demo_skip_button, self.ui.demo_page.demo_stop_button,
+                                     self.ui.demo_page.demo_queue_bar, self.ui.demo_page.demo_log_filter, self.ui.demo_page.demo_grid, self.ui.demo_page.demo_text)),
                 (self.ui.tools_page, tuple(self.ui.permission_preset_buttons)),
                 (self.ui.settings_page, ())):
             self.ui.pages.select(page)
             self.root.update()
             if page == self.ui.demo_page:
-                self.assertGreaterEqual(self.ui.demo_grid.winfo_width(), 180)
-                self.assertGreaterEqual(self.ui.demo_output.winfo_width(), 260)
-            for widget in widgets + (self.ui.log_button, self.ui.cancel_button):
+                self.assertGreaterEqual(self.ui.demo_page.demo_grid.winfo_width(), 180)
+                self.assertGreaterEqual(self.ui.demo_page.demo_output.winfo_width(), 260)
+            self.assertFalse(self.ui.cancel_button.winfo_viewable())
+            for widget in widgets + (self.ui.log_button,):
                 self.assertTrue(widget.winfo_viewable(), str(widget))
                 self.assertGreater(widget.winfo_height(), 15)
                 bottom = widget.winfo_rooty() + widget.winfo_height()
@@ -431,10 +711,10 @@ class GuiTests(unittest.TestCase):
         self.root.update()
         self.assertTrue(self.ui.text.winfo_viewable())
         self.assertIn("折叠期间也记录日志", self.ui.text.get("1.0", "end"))
-        self.assertTrue(self.ui.apply_button.winfo_viewable())
-        self.assertGreater(self.ui.diff_tree.winfo_height(), 80,
+        self.assertTrue(self.ui.files_view.apply_button.winfo_viewable())
+        self.assertGreater(self.ui.files_view.diff_tree.winfo_height(), 80,
                            "body={}, pane={}, schemes={}, log={}, status={}".format(
-                               self.ui.pages.winfo_height(), self.ui.update_pane.winfo_height(), self.ui.tree.winfo_height(),
+                               self.ui.pages.winfo_height(), self.ui.files_view.update_pane.winfo_height(), self.ui.files_view.tree.winfo_height(),
                                self.ui.log_output.winfo_height(), self.ui.status_label.winfo_height()))
         self.ui.log_button.invoke()
         self.root.update()
@@ -452,20 +732,20 @@ class GuiTests(unittest.TestCase):
             (target / "config/空版本").mkdir()
             self.ui.engine = Engine(target)
             self.ui.target.set(str(target))
-            self.ui.refresh_config_choices()
+            self.ui.config_view.refresh_config_choices()
             self.wait_job()
-            self.assertEqual(set(self.ui.config_tree.get_children()), {"福建农职", "空版本"})
-            self.ui.config_tree.selection_set("空版本")
+            self.assertEqual(set(self.ui.config_view.config_tree.get_children()), {"福建农职", "空版本"})
+            self.ui.config_view.config_tree.selection_set("空版本")
             self.root.update()
             self.wait_job()
-            self.assertEqual(str(self.ui.config_apply_button.cget("state")), "disabled")
-            self.ui.config_tree.selection_set("福建农职")
+            self.assertEqual(str(self.ui.config_view.config_apply_button.cget("state")), "disabled")
+            self.ui.config_view.config_tree.selection_set("福建农职")
             self.root.update()
             self.wait_job()
-            self.assertEqual(len(self.ui.config_mapping.get_children()), 3)
-            self.assertEqual(str(self.ui.config_apply_button.cget("state")), "normal")
-            with patch("app.messagebox.askyesno", return_value=True):
-                self.ui.apply_config()
+            self.assertEqual(len(self.ui.config_view.config_mapping.get_children()), 3)
+            self.assertEqual(str(self.ui.config_view.config_apply_button.cget("state")), "normal")
+            with patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True):
+                self.ui.config_view.apply_config()
                 self.wait_job()
                 self.root.update()
                 if self.ui.busy:
@@ -474,12 +754,12 @@ class GuiTests(unittest.TestCase):
                 self.assertEqual((target / name).read_bytes(), data)
             self.assertEqual(self.ui.task_mode.get(), "配置版本：福建农职")
             write_bundle(target, "新加入版本")
-            self.ui.refresh_config_choices()
+            self.ui.config_view.refresh_config_choices()
             self.wait_job()
             self.root.update()
             if self.ui.busy:
                 self.wait_job()
-            self.assertIn("新加入版本", self.ui.config_tree.get_children())
+            self.assertIn("新加入版本", self.ui.config_view.config_tree.get_children())
 
     def test_worker_completes_on_tk_thread(self):
         results = []
@@ -488,8 +768,8 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(results, [42])
 
     def test_assets_page_compares_content_and_downloads_only_missing(self):
-        from generate import generate
-        from core import read_json, load_profile
+        from publish_switcher.repositories.generate import generate
+        from tools.packaging.legacy.core import read_json, load_profile
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             source, target, repo = base / "source", base / "publish", base / "repo"
@@ -508,26 +788,26 @@ class GuiTests(unittest.TestCase):
             self.ui.profiles = [{"manifest": manifest, "source": origin}]
             self.ui.show_profiles()
             self.ui.pages.select(self.ui.assets_page)
-            self.ui.assets_combo.current(0)
-            self.ui.preview_assets()
+            self.ui.assets_view.assets_combo.current(0)
+            self.ui.assets_view.preview_assets()
             self.wait_job()
-            self.assertEqual(self.ui.assets_tree.item("Assets/same.png", "tags"), ("same",))
-            self.assertEqual(self.ui.assets_tree.item("Assets/different.png", "values")[4], "跳过")
-            self.assertEqual(str(self.ui.assets_apply_button.cget("state")), "normal")
-            self.ui.assets_tree.selection_set("Assets/different.png")
+            self.assertEqual(self.ui.assets_view.assets_tree.item("Assets/same.png", "tags"), ("same",))
+            self.assertEqual(self.ui.assets_view.assets_tree.item("Assets/different.png", "values")[4], "跳过")
+            self.assertEqual(str(self.ui.assets_view.assets_apply_button.cget("state")), "normal")
+            self.ui.assets_view.assets_tree.selection_set("Assets/different.png")
             self.root.update()
-            self.ui.show_assets_details()
+            self.ui.assets_view.show_assets_details()
             self.assertIn("sha256", self.ui.diagnostic_window.summary_text.get("1.0", "end"))
-            with patch("app.messagebox.askyesno", return_value=True):
-                self.ui.download_assets()
+            with patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True):
+                self.ui.assets_view.download_assets()
                 self.wait_job()
             self.assertEqual((target / "Assets/missing.avi").read_bytes(), b"video")
             self.assertEqual((target / "Assets/different.png").read_bytes(), b"AAAA")
-            self.assertIsNone(self.ui.assets_checked)
-            self.ui.preview_assets()
+            self.assertIsNone(self.ui.assets_view.assets_checked)
+            self.ui.assets_view.preview_assets()
             self.wait_job()
-            self.assertEqual(str(self.ui.assets_apply_button.cget("state")), "disabled")
-            self.assertEqual(str(self.ui.assets_combo.cget("state")), "readonly")
+            self.assertEqual(str(self.ui.assets_view.assets_apply_button.cget("state")), "disabled")
+            self.assertEqual(str(self.ui.assets_view.assets_combo.cget("state")), "readonly")
 
     def test_config_json_comparison_tabs_colors_and_stale_preview(self):
         from test_config_versions import write_bundle
@@ -541,16 +821,16 @@ class GuiTests(unittest.TestCase):
             template.write_bytes(b'[{"PythonScriptPath":"new-sensitive-script.py"}]')
             self.ui.engine = Engine(target)
             self.ui.target.set(str(target))
-            self.ui.refresh_config_choices()
+            self.ui.config_view.refresh_config_choices()
             self.wait_job()
-            self.ui.config_tree.selection_set("福建农职")
+            self.ui.config_view.config_tree.selection_set("福建农职")
             self.root.update()
             self.wait_job()
             self.root.update()
-            self.assertEqual(str(self.ui.config_compare_button.cget("state")), "normal")
-            self.ui.config_compare_button.invoke()
+            self.assertEqual(str(self.ui.config_view.config_compare_button.cget("state")), "normal")
+            self.ui.config_view.config_compare_button.invoke()
             self.wait_job()
-            window = self.ui.config_diff_window
+            window = self.ui.config_view.config_diff_window
             self.assertEqual([window.pages.tab(t, "text") for t in window.pages.tabs()],
                              ["对比摘要", "JSON 内容差异（格式化）", "原始文本差异"])
             self.assertTrue(window.json_diff_text.tag_ranges("add"))
@@ -559,14 +839,14 @@ class GuiTests(unittest.TestCase):
             self.assertIn("new-sensitive-script.py", window.raw_diff_text.get("1.0", "end"))
             self.assertNotIn("sensitive-script.py", self.ui.text.get("1.0", "end"))
             self.assertIn(b'old-sensitive-script.py', active.read_bytes())
-            self.assertEqual(str(self.ui.config_apply_button.cget("state")), "normal")
+            self.assertEqual(str(self.ui.config_view.config_apply_button.cget("state")), "normal")
             template.write_bytes(b'[]')
-            with patch("app.messagebox.showerror") as error:
-                self.ui.config_compare_button.invoke()
+            with patch("publish_switcher.gui.app.messagebox.showerror") as error:
+                self.ui.config_view.config_compare_button.invoke()
                 self.wait_job()
                 error.assert_called_once()
-            self.assertIsNone(self.ui.config_preview)
-            self.assertEqual(str(self.ui.config_compare_button.cget("state")), "disabled")
+            self.assertIsNone(self.ui.config_view.config_preview)
+            self.assertEqual(str(self.ui.config_view.config_compare_button.cget("state")), "disabled")
 
     def test_demo_page_discovers_and_runs_selected_task_with_logs(self):
         import json
@@ -584,29 +864,29 @@ class GuiTests(unittest.TestCase):
             self.ui.pages.select(self.ui.demo_page)
             self.root.update()
             self.wait_job()
-            self.assertEqual(tuple(self.ui.demo_grid.cards), ("2",))
-            self.ui.demo_grid.select("2")
+            self.assertEqual(tuple(self.ui.demo_page.demo_grid.cards), ("2",))
+            self.ui.demo_page.demo_grid.select("2")
             self.root.update()
-            self.assertEqual(str(self.ui.demo_run_button.cget("state")), "normal")
-            with patch.object(app, "CONFIG", base / "settings.json"), patch("app.messagebox.askyesno", return_value=True):
-                self.ui.start_demo()
-                self.assertTrue(self.ui.demo_running)
-                self.assertEqual(str(self.ui.demo_stop_button.cget("state")), "normal")
-                self.assertEqual(str(self.ui.check_button.cget("state")), "disabled")
+            self.assertEqual(str(self.ui.demo_page.demo_run_button.cget("state")), "normal")
+            with patch.object(app, "CONFIG", base / "settings.json"), patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True):
+                self.ui.demo_page.start_demo()
+                self.assertTrue(self.ui.demo_page.running)
+                self.assertEqual(str(self.ui.demo_page.demo_stop_button.cget("state")), "normal")
+                self.assertEqual(str(self.ui.files_view.check_button.cget("state")), "disabled")
                 self.wait_job()
-            self.assertFalse(self.ui.demo_running)
-            self.assertIn("GUI-demo-ok", self.ui.demo_text.get("1.0", "end"))
-            logfile = Path(self.ui.demo_log_path.get())
+            self.assertFalse(self.ui.demo_page.running)
+            self.assertIn("GUI-demo-ok", self.ui.demo_page.demo_text.get("1.0", "end"))
+            logfile = Path(self.ui.demo_page.demo_log_path.get())
             self.assertTrue(logfile.is_file())
             self.assertIn("GUI-demo-ok", logfile.read_text(encoding="utf-8"))
-            self.assertIn("正常结束", self.ui.demo_status.get())
-            self.assertEqual(self.ui.demo_grid.cards['2'].phase.cget('text'), '已完成')
-            self.assertEqual(str(self.ui.demo_stop_button.cget("state")), "disabled")
+            self.assertIn("正常结束", self.ui.demo_page.demo_status.get())
+            self.assertEqual(self.ui.demo_page.demo_grid.cards['2'].phase.cget('text'), '已完成')
+            self.assertEqual(str(self.ui.demo_page.demo_stop_button.cget("state")), "disabled")
             script.unlink()
             self.ui.update_current()
             self.wait_job()
             self.root.update()
-            self.assertEqual(str(self.ui.demo_run_button.cget("state")), "disabled")
+            self.assertEqual(str(self.ui.demo_page.demo_run_button.cget("state")), "disabled")
 
     def test_demo_all_sequential_cards_follow_current_module_then_cancel_queue(self):
         import json
@@ -631,65 +911,65 @@ class GuiTests(unittest.TestCase):
             self.ui.pages.select(self.ui.demo_page)
             self.root.update()
             self.wait_job()
-            self.ui.demo_pane.sashpos(0, 540)
+            self.ui.demo_page.demo_pane.sashpos(0, 540)
             self.root.update()
-            self.assertEqual(str(self.ui.demo_all_button.cget('state')), 'normal')
-            self.assertGreaterEqual(self.ui.demo_grid.columns, 2)
-            self.assertGreater(self.ui.demo_text.winfo_rootx(), self.ui.demo_grid.winfo_rootx() + self.ui.demo_grid.winfo_width())
-            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('app.messagebox.askyesno', return_value=True) as confirm:
-                self.ui.demo_all_button.invoke()
+            self.assertEqual(str(self.ui.demo_page.demo_all_button.cget('state')), 'normal')
+            self.assertGreaterEqual(self.ui.demo_page.demo_grid.columns, 2)
+            self.assertGreater(self.ui.demo_page.demo_text.winfo_rootx(), self.ui.demo_page.demo_grid.winfo_rootx() + self.ui.demo_page.demo_grid.winfo_width())
+            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('publish_switcher.gui.app.messagebox.askyesno', return_value=True) as confirm:
+                self.ui.demo_page.demo_all_button.invoke()
                 try:
                     deadline = time.monotonic() + 5
                     while time.monotonic() < deadline:
                         self.root.update()
-                        if '运行中' in self.ui.demo_grid.cards['3'].phase.cget('text'):
+                        if '运行中' in self.ui.demo_page.demo_grid.cards['3'].phase.cget('text'):
                             break
                         time.sleep(.01)
                     for key in ('1', '2', '3'):
-                        card = self.ui.demo_grid.cards[key]
+                        card = self.ui.demo_page.demo_grid.cards[key]
                         self.assertIn('运行中' if key == '3' else '已完成', card.phase.cget('text'))
                         self.assertIn('PID', card.details.get('1.0', 'end'))
                         self.assertIn('IoT/', card.details.get('1.0', 'end'))
-                    first = next(iter(self.ui.demo_grid.cards['1'].scripts.values()))
-                    second = next(iter(self.ui.demo_grid.cards['2'].scripts.values()))
+                    first = next(iter(self.ui.demo_page.demo_grid.cards['1'].scripts.values()))
+                    second = next(iter(self.ui.demo_page.demo_grid.cards['2'].scripts.values()))
                     self.assertNotEqual(first['pid'], second['pid'])
-                    self.assertIn('运行 1', self.ui.demo_count.cget('text'))
-                    self.assertIn('完成 2', self.ui.demo_count.cget('text'))
-                    self.assertEqual(self.ui.demo_grid.selected, '3')
-                    self.assertIn('等待启动', self.ui.demo_grid.cards['5'].phase.cget('text'))
-                    self.assertIn('不可运行', self.ui.demo_grid.cards['4'].phase.cget('text'))
+                    self.assertIn('运行 1', self.ui.demo_page.demo_count.cget('text'))
+                    self.assertIn('完成 2', self.ui.demo_page.demo_count.cget('text'))
+                    self.assertEqual(self.ui.demo_page.demo_grid.selected, '3')
+                    self.assertIn('等待启动', self.ui.demo_page.demo_grid.cards['5'].phase.cget('text'))
+                    self.assertIn('不可运行', self.ui.demo_page.demo_grid.cards['4'].phase.cget('text'))
                     self.assertIn('跳过', confirm.call_args.args[1])
-                    self.assertEqual(str(self.ui.check_button.cget('state')), 'disabled')
-                    self.ui.demo_grid.select('3')
-                    self.assertEqual(str(self.ui.demo_run_button.cget('state')), 'disabled')
+                    self.assertEqual(str(self.ui.files_view.check_button.cget('state')), 'disabled')
+                    self.ui.demo_page.demo_grid.select('3')
+                    self.assertEqual(str(self.ui.demo_page.demo_run_button.cget('state')), 'disabled')
                 finally:
-                    self.ui.stop_demo()
+                    self.ui.demo_page.stop_demo()
                     self.wait_job()
             for key in ('1', '2'):
-                self.assertEqual(self.ui.demo_grid.cards[key].phase.cget('text'), '已完成')
-            self.assertEqual(self.ui.demo_grid.cards['3'].phase.cget('text'), '已停止')
-            self.assertEqual(self.ui.demo_grid.cards['5'].phase.cget('text'), '未启动')
-            self.assertFalse(self.ui.demo_running)
-            self.assertEqual(str(self.ui.demo_all_button.cget('state')), 'normal')
-            self.assertTrue(Path(self.ui.demo_log_path.get()).is_file())
+                self.assertEqual(self.ui.demo_page.demo_grid.cards[key].phase.cget('text'), '已完成')
+            self.assertEqual(self.ui.demo_page.demo_grid.cards['3'].phase.cget('text'), '已停止')
+            self.assertEqual(self.ui.demo_page.demo_grid.cards['5'].phase.cget('text'), '未启动')
+            self.assertFalse(self.ui.demo_page.running)
+            self.assertEqual(str(self.ui.demo_page.demo_all_button.cget('state')), 'normal')
+            self.assertTrue(Path(self.ui.demo_page.demo_log_path.get()).is_file())
 
     def test_demo_grid_reflows_and_scrolls_without_losing_selection(self):
         self.root.geometry('1240x780')
         self.root.deiconify()
         self.ui.pages.select(self.ui.demo_page)
         self.root.update()
-        self.ui.demo_grid.set_tasks([(str(index), '模块' + str(index), ['IoT/test/demo.py'], None) for index in range(12)])
-        self.ui.demo_pane.sashpos(0, 530)
+        self.ui.demo_page.demo_grid.set_tasks([(str(index), '模块' + str(index), ['IoT/test/demo.py'], None) for index in range(12)])
+        self.ui.demo_page.demo_pane.sashpos(0, 530)
         self.root.update()
-        self.ui.demo_grid.select('3')
-        self.assertEqual(self.ui.demo_grid.columns, 2)
-        self.ui.demo_grid.canvas.yview_moveto(1)
-        self.assertGreater(self.ui.demo_grid.canvas.yview()[0], 0)
-        self.ui.demo_pane.sashpos(0, 280)
+        self.ui.demo_page.demo_grid.select('3')
+        self.assertEqual(self.ui.demo_page.demo_grid.columns, 2)
+        self.ui.demo_page.demo_grid.canvas.yview_moveto(1)
+        self.assertGreater(self.ui.demo_page.demo_grid.canvas.yview()[0], 0)
+        self.ui.demo_page.demo_pane.sashpos(0, 280)
         self.root.update()
-        self.assertEqual(self.ui.demo_grid.columns, 1)
-        self.assertEqual(self.ui.demo_grid.selected, '3')
-        self.assertTrue(self.ui.demo_grid.cards['3'].selected)
+        self.assertEqual(self.ui.demo_page.demo_grid.columns, 1)
+        self.assertEqual(self.ui.demo_page.demo_grid.selected, '3')
+        self.assertTrue(self.ui.demo_page.demo_grid.cards['3'].selected)
 
     def test_demo_skip_advances_queue_progress_and_clicking_cards_filters_logs(self):
         import json
@@ -705,55 +985,55 @@ class GuiTests(unittest.TestCase):
             (target / 'TrainTaskInfo.json').write_text(json.dumps(tasks), encoding='utf-8')
             self.ui.target.set(str(target))
             self.ui.engine = Engine(target)
-            self.ui.refresh_demo_tasks()
+            self.ui.demo_page.refresh_demo_tasks()
             self.wait_job()
             def wait_output(text):
                 limit = time.monotonic() + 7
-                while text not in self.ui.demo_text.get('1.0', 'end') and time.monotonic() < limit:
+                while text not in self.ui.demo_page.demo_text.get('1.0', 'end') and time.monotonic() < limit:
                     self.root.update()
                     time.sleep(.01)
-                self.assertIn(text, self.ui.demo_text.get('1.0', 'end'))
-            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('app.messagebox.askyesno', return_value=True):
-                self.ui.start_all_demos()
+                self.assertIn(text, self.ui.demo_page.demo_text.get('1.0', 'end'))
+            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('publish_switcher.gui.app.messagebox.askyesno', return_value=True):
+                self.ui.demo_page.start_all_demos()
                 try:
                     wait_output('only-module-1')
-                    self.assertIn('第 1 / 2', self.ui.demo_progress_text.get())
-                    self.assertEqual(str(self.ui.demo_skip_button.cget('state')), 'normal')
-                    self.ui.demo_skip_button.invoke()
-                    self.assertEqual(str(self.ui.demo_skip_button.cget('state')), 'disabled')
+                    self.assertIn('第 1 / 2', self.ui.demo_page.demo_progress_text.get())
+                    self.assertEqual(str(self.ui.demo_page.demo_skip_button.cget('state')), 'normal')
+                    self.ui.demo_page.demo_skip_button.invoke()
+                    self.assertEqual(str(self.ui.demo_page.demo_skip_button.cget('state')), 'disabled')
                     wait_output('only-module-2')
-                    self.assertEqual(self.ui.demo_grid.cards['1'].phase.cget('text'), '已跳过')
-                    self.assertIn('第 2 / 2', self.ui.demo_progress_text.get())
-                    self.assertEqual(float(self.ui.demo_queue_bar['value']), 1)
-                    self.assertEqual(self.ui.demo_grid.selected, '2')
-                    self.assertIn('总用时', self.ui.demo_elapsed_text.get())
-                    self.assertIn('00:', self.ui.demo_grid.cards['1'].subtitle.cget('text'))
-                    self.ui.demo_log_mode.set('当前模块日志')
-                    self.ui.render_demo_logs()
-                    self.assertIn('only-module-2', self.ui.demo_text.get('1.0', 'end'))
-                    self.assertNotIn('only-module-1', self.ui.demo_text.get('1.0', 'end'))
-                    self.assertEqual(Path(self.ui.demo_log_path.get()), self.ui.demo_module_logs['2'])
-                    self.ui.demo_grid.select('1')
+                    self.assertEqual(self.ui.demo_page.demo_grid.cards['1'].phase.cget('text'), '已跳过')
+                    self.assertIn('第 2 / 2', self.ui.demo_page.demo_progress_text.get())
+                    self.assertEqual(float(self.ui.demo_page.demo_queue_bar['value']), 1)
+                    self.assertEqual(self.ui.demo_page.demo_grid.selected, '2')
+                    self.assertIn('总用时', self.ui.demo_page.demo_elapsed_text.get())
+                    self.assertIn('00:', self.ui.demo_page.demo_grid.cards['1'].subtitle.cget('text'))
+                    self.ui.demo_page.demo_log_mode.set('当前模块日志')
+                    self.ui.demo_page.render_demo_logs()
+                    self.assertIn('only-module-2', self.ui.demo_page.demo_text.get('1.0', 'end'))
+                    self.assertNotIn('only-module-1', self.ui.demo_page.demo_text.get('1.0', 'end'))
+                    self.assertEqual(Path(self.ui.demo_page.demo_log_path.get()), self.ui.demo_page.demo_module_logs['2'])
+                    self.ui.demo_page.demo_grid.select('1')
                     self.root.update()
-                    self.assertIn('only-module-1', self.ui.demo_text.get('1.0', 'end'))
-                    self.assertNotIn('only-module-2', self.ui.demo_text.get('1.0', 'end'))
+                    self.assertIn('only-module-1', self.ui.demo_page.demo_text.get('1.0', 'end'))
+                    self.assertNotIn('only-module-2', self.ui.demo_page.demo_text.get('1.0', 'end'))
                     # Card selection affects log viewing, never the target of Skip current.
-                    self.ui.demo_skip_button.invoke()
+                    self.ui.demo_page.demo_skip_button.invoke()
                     self.wait_job()
                 finally:
                     if self.ui.busy:
-                        self.ui.stop_demo()
+                        self.ui.demo_page.stop_demo()
                         self.wait_job()
-            self.assertEqual(self.ui.demo_grid.cards['2'].phase.cget('text'), '已跳过')
-            self.assertIn('已跳过 2 个', self.ui.demo_status.get())
-            self.assertIn('已处理 2 / 2', self.ui.demo_progress_text.get())
-            self.assertEqual(float(self.ui.demo_queue_bar['value']), 2)
-            self.assertEqual(str(self.ui.demo_skip_button.cget('state')), 'disabled')
-            self.ui.demo_log_mode.set('全部日志')
-            self.ui.render_demo_logs()
-            self.assertIn('only-module-1', self.ui.demo_text.get('1.0', 'end'))
-            self.assertIn('only-module-2', self.ui.demo_text.get('1.0', 'end'))
-            self.assertEqual(Path(self.ui.demo_log_path.get()), self.ui.demo_all_log)
+            self.assertEqual(self.ui.demo_page.demo_grid.cards['2'].phase.cget('text'), '已跳过')
+            self.assertIn('已跳过 2 个', self.ui.demo_page.demo_status.get())
+            self.assertIn('已处理 2 / 2', self.ui.demo_page.demo_progress_text.get())
+            self.assertEqual(float(self.ui.demo_page.demo_queue_bar['value']), 2)
+            self.assertEqual(str(self.ui.demo_page.demo_skip_button.cget('state')), 'disabled')
+            self.ui.demo_page.demo_log_mode.set('全部日志')
+            self.ui.demo_page.render_demo_logs()
+            self.assertIn('only-module-1', self.ui.demo_page.demo_text.get('1.0', 'end'))
+            self.assertIn('only-module-2', self.ui.demo_page.demo_text.get('1.0', 'end'))
+            self.assertEqual(Path(self.ui.demo_page.demo_log_path.get()), self.ui.demo_page.demo_all_log)
 
     def test_demo_log_copy_export_is_full_and_view_buffer_is_bounded(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parent / '.tmp') as directory:
@@ -761,38 +1041,38 @@ class GuiTests(unittest.TestCase):
             all_log, module_log = base / 'all.log', base / 'module.log'
             all_log.write_text('full-all-log\n' * 3200, encoding='utf-8')
             module_log.write_text('full-module-log\n' * 3200, encoding='utf-8')
-            self.ui.demo_grid.set_tasks([('1', '模块', ['IoT/a.py'], None), ('2', '模块2', ['IoT/b.py'], None)])
-            self.ui.demo_tasks = {'1': {'task': {'TrainTaskName': '模块'}, 'valid': True}}
-            self.ui.append_demo({'task_id': None, 'line': 'aggregate', 'log_path': str(all_log)})
+            self.ui.demo_page.demo_grid.set_tasks([('1', '模块', ['IoT/a.py'], None), ('2', '模块2', ['IoT/b.py'], None)])
+            self.ui.demo_page.demo_tasks = {'1': {'task': {'TrainTaskName': '模块'}, 'valid': True}}
+            self.ui.demo_page.append_demo({'task_id': None, 'line': 'aggregate', 'log_path': str(all_log)})
             for index in range(3100):
-                self.ui.append_demo({'task_id': '1', 'line': 'line-' + str(index), 'module_log_path': str(module_log) if index == 0 else None})
-            self.assertEqual(len(self.ui.demo_log_entries), 3000)
-            self.ui.demo_grid.select('1')
-            self.ui.demo_log_mode.set('当前模块日志')
-            self.ui.render_demo_logs()
-            self.assertNotIn('line-99\n', self.ui.demo_text.get('1.0', 'end'))
-            self.assertIn('line-3099', self.ui.demo_text.get('1.0', 'end'))
+                self.ui.demo_page.append_demo({'task_id': '1', 'line': 'line-' + str(index), 'module_log_path': str(module_log) if index == 0 else None})
+            self.assertEqual(len(self.ui.demo_page.demo_log_entries), 3000)
+            self.ui.demo_page.demo_grid.select('1')
+            self.ui.demo_page.demo_log_mode.set('当前模块日志')
+            self.ui.demo_page.render_demo_logs()
+            self.assertNotIn('line-99\n', self.ui.demo_page.demo_text.get('1.0', 'end'))
+            self.assertIn('line-3099', self.ui.demo_page.demo_text.get('1.0', 'end'))
             with patch.object(self.root, 'clipboard_clear') as clear, patch.object(self.root, 'clipboard_append') as copy:
-                self.ui.copy_demo_logs()
+                self.ui.demo_page.copy_demo_logs()
             clear.assert_called_once_with()
-            copy.assert_called_once_with(self.ui.demo_text.get('1.0', 'end-1c'))
-            self.assertEqual(Path(self.ui.demo_log_path.get()), module_log)
+            copy.assert_called_once_with(self.ui.demo_page.demo_text.get('1.0', 'end-1c'))
+            self.assertEqual(Path(self.ui.demo_page.demo_log_path.get()), module_log)
             export = base / 'export.log'
-            with patch('app.filedialog.asksaveasfilename', return_value=str(export)):
-                self.ui.export_demo_logs()
+            with patch('publish_switcher.gui.app.filedialog.asksaveasfilename', return_value=str(export)):
+                self.ui.demo_page.export_demo_logs()
             self.assertEqual(export.read_bytes(), module_log.read_bytes(), 'export must not truncate to visible buffer')
-            self.ui.demo_log_mode.set('全部日志')
-            self.ui.render_demo_logs()
-            with patch('app.filedialog.asksaveasfilename', return_value=str(export)):
-                self.ui.export_demo_logs()
+            self.ui.demo_page.demo_log_mode.set('全部日志')
+            self.ui.demo_page.render_demo_logs()
+            with patch('publish_switcher.gui.app.filedialog.asksaveasfilename', return_value=str(export)):
+                self.ui.demo_page.export_demo_logs()
             self.assertEqual(export.read_bytes(), all_log.read_bytes())
-            self.ui.demo_log_mode.set('当前模块日志')
-            self.ui.demo_grid.select('2')
+            self.ui.demo_page.demo_log_mode.set('当前模块日志')
+            self.ui.demo_page.demo_grid.select('2')
             self.root.update()
-            self.assertEqual(self.ui.demo_text.get('1.0', 'end-1c'), '')
-            self.assertIn('尚无', self.ui.demo_log_path.get())
-            with patch('app.messagebox.showinfo') as info, patch('app.filedialog.asksaveasfilename') as choose:
-                self.ui.export_demo_logs()
+            self.assertEqual(self.ui.demo_page.demo_text.get('1.0', 'end-1c'), '')
+            self.assertIn('尚无', self.ui.demo_page.demo_log_path.get())
+            with patch('publish_switcher.gui.app.messagebox.showinfo') as info, patch('publish_switcher.gui.app.filedialog.asksaveasfilename') as choose:
+                self.ui.demo_page.export_demo_logs()
             info.assert_called_once()
             choose.assert_not_called()
 
@@ -820,38 +1100,38 @@ class GuiTests(unittest.TestCase):
             self.ui.pages.select(self.ui.demo_page)
             self.root.update()
             self.wait_job()
-            self.ui.demo_grid.cards['1'].check.invoke()
-            self.ui.demo_grid.cards['2'].check.invoke()
-            self.assertEqual(str(self.ui.demo_checked_button.cget('state')), 'normal')
-            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('app.messagebox.askyesno', return_value=True):
-                self.ui.demo_checked_button.invoke()
+            self.ui.demo_page.demo_grid.cards['1'].check.invoke()
+            self.ui.demo_page.demo_grid.cards['2'].check.invoke()
+            self.assertEqual(str(self.ui.demo_page.demo_checked_button.cget('state')), 'normal')
+            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('publish_switcher.gui.app.messagebox.askyesno', return_value=True):
+                self.ui.demo_page.demo_checked_button.invoke()
                 self.wait_job()
-                self.assertIn('异常退出（130）', self.ui.demo_status.get())
-                self.assertEqual(self.ui.demo_results.get_children(), ('2', '1'))
-                self.assertEqual(self.ui.demo_results.set('2', 'exit'), '130')
-                self.assertEqual(self.ui.demo_results.set('1', 'result'), '未启动')
-                self.assertEqual(str(self.ui.demo_retry_button.cget('state')), 'normal')
+                self.assertIn('异常退出（130）', self.ui.demo_page.demo_status.get())
+                self.assertEqual(self.ui.demo_page.demo_results.get_children(), ('2', '1'))
+                self.assertEqual(self.ui.demo_page.demo_results.set('2', 'exit'), '130')
+                self.assertEqual(self.ui.demo_page.demo_results.set('1', 'result'), '未启动')
+                self.assertEqual(str(self.ui.demo_page.demo_retry_button.cget('state')), 'normal')
                 self.assertIn('IoT/test/first.py · 异常 · 退出码 130',
-                              self.ui.demo_result_detail.get('1.0', 'end'))
-                self.ui.demo_results.selection_set('1')
+                              self.ui.demo_page.demo_result_detail.get('1.0', 'end'))
+                self.ui.demo_page.demo_results.selection_set('1')
                 self.root.update()
-                self.assertIn('前一模块异常，未启动', self.ui.demo_result_detail.get('1.0', 'end'))
-                self.assertEqual(str(self.ui.demo_result_log_button.cget('state')), 'disabled')
-                self.ui.demo_results.selection_set('2')
+                self.assertIn('前一模块异常，未启动', self.ui.demo_page.demo_result_detail.get('1.0', 'end'))
+                self.assertEqual(str(self.ui.demo_page.demo_result_log_button.cget('state')), 'disabled')
+                self.ui.demo_page.demo_results.selection_set('2')
                 self.root.update()
-                self.ui.demo_log_entries.clear()  # Model a module whose output was evicted by later logs.
-                self.ui.demo_result_log_button.invoke()
-                self.assertEqual(self.ui.demo_output.select(), str(self.ui.demo_log_page))
-                self.assertIn('first-failed', self.ui.demo_text.get('1.0', 'end'))
-                self.ui.demo_output.select(self.ui.demo_result_page)
-                self.ui.demo_retry_button.invoke()
+                self.ui.demo_page.demo_log_entries.clear()  # Model a module whose output was evicted by later logs.
+                self.ui.demo_page.demo_result_log_button.invoke()
+                self.assertEqual(self.ui.demo_page.demo_output.select(), str(self.ui.demo_page.demo_log_page))
+                self.assertIn('first-failed', self.ui.demo_page.demo_text.get('1.0', 'end'))
+                self.ui.demo_page.demo_output.select(self.ui.demo_page.demo_result_page)
+                self.ui.demo_page.demo_retry_button.invoke()
                 self.wait_job()
-            self.assertEqual(self.ui.demo_results.get_children(), ('2', '1'))
-            self.assertEqual(self.ui.demo_results.set('2', 'result'), '已完成')
-            self.assertEqual(self.ui.demo_results.set('1', 'result'), '已完成')
-            self.assertIn('second-ran', self.ui.demo_module_logs['1'].read_text(encoding='utf-8'))
-            self.assertNotIn('3', self.ui.demo_module_logs)
-            self.assertEqual(str(self.ui.demo_retry_button.cget('state')), 'disabled')
+            self.assertEqual(self.ui.demo_page.demo_results.get_children(), ('2', '1'))
+            self.assertEqual(self.ui.demo_page.demo_results.set('2', 'result'), '已完成')
+            self.assertEqual(self.ui.demo_page.demo_results.set('1', 'result'), '已完成')
+            self.assertIn('second-ran', self.ui.demo_page.demo_module_logs['1'].read_text(encoding='utf-8'))
+            self.assertNotIn('3', self.ui.demo_page.demo_module_logs)
+            self.assertEqual(str(self.ui.demo_page.demo_retry_button.cget('state')), 'disabled')
 
     def test_demo_preflight_explains_missing_script_and_empty_config_inline(self):
         import json
@@ -871,35 +1151,35 @@ class GuiTests(unittest.TestCase):
             self.ui.pages.select(self.ui.demo_page)
             self.root.update()
             self.wait_job()
-            self.assertIn('运行模块后', self.ui.demo_result_hint.get())
+            self.assertEqual(self.ui.demo_page.demo_result_hint.get(), '暂无运行记录')
             script.unlink()
-            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('app.messagebox.askyesno', return_value=True), \
-                    patch('app.messagebox.showerror') as error:
-                self.ui.demo_all_button.invoke()
+            with patch.object(app, 'CONFIG', base / 'settings.json'), patch('publish_switcher.gui.app.messagebox.askyesno', return_value=True), \
+                    patch('publish_switcher.gui.app.messagebox.showerror') as error:
+                self.ui.demo_page.demo_all_button.invoke()
                 self.wait_job()
             error.assert_called_once()
-            self.assertIn('启动检查失败', self.ui.demo_result_hint.get())
-            self.assertEqual(self.ui.demo_results.set('4', 'result'), '未启动')
-            detail = self.ui.demo_result_detail.get('1.0', 'end')
+            self.assertIn('启动检查失败', self.ui.demo_page.demo_result_hint.get())
+            self.assertEqual(self.ui.demo_page.demo_results.set('4', 'result'), '未启动')
+            detail = self.ui.demo_page.demo_result_detail.get('1.0', 'end')
             self.assertIn('模块 #4 模型校验 无法启动', detail)
             self.assertIn('点击左侧“刷新”', detail)
-            self.assertEqual(str(self.ui.demo_retry_button.cget('state')), 'disabled')
-            self.assertEqual(str(self.ui.demo_all_button.cget('state')), 'disabled')
+            self.assertEqual(str(self.ui.demo_page.demo_retry_button.cget('state')), 'disabled')
+            self.assertEqual(str(self.ui.demo_page.demo_all_button.cget('state')), 'disabled')
             script.write_text("print('ready again')\n", encoding='utf-8')
-            self.ui.refresh_demo_tasks()
+            self.ui.demo_page.refresh_demo_tasks()
             self.wait_job()
-            self.assertEqual(str(self.ui.demo_retry_button.cget('state')), 'normal')
-            self.assertIn('脚本不存在', self.ui.demo_result_detail.get('1.0', 'end'))
-            with patch('app.messagebox.showerror') as error:
+            self.assertEqual(str(self.ui.demo_page.demo_retry_button.cget('state')), 'normal')
+            self.assertIn('脚本不存在', self.ui.demo_page.demo_result_detail.get('1.0', 'end'))
+            with patch('publish_switcher.gui.app.messagebox.showerror') as error:
                 config.write_text('[]', encoding='utf-8')
-                self.ui.refresh_demo_tasks()
+                self.ui.demo_page.refresh_demo_tasks()
                 self.wait_job()
-                self.assertIn('没有 IoT 模块', self.ui.demo_grid.empty.cget('text'))
-                self.assertFalse(self.ui.demo_results.get_children())
+                self.assertIn('没有 IoT 模块', self.ui.demo_page.demo_grid.empty.cget('text'))
+                self.assertFalse(self.ui.demo_page.demo_results.get_children())
                 config.write_text('{', encoding='utf-8')
-                self.ui.refresh_demo_tasks()
+                self.ui.demo_page.refresh_demo_tasks()
                 self.wait_job()
-                self.assertIn('无法读取配置', self.ui.demo_grid.empty.cget('text'))
+                self.assertIn('无法读取配置', self.ui.demo_page.demo_grid.empty.cget('text'))
             error.assert_not_called()
 
     def test_demo_new_output_respects_scrolled_view_until_latest_is_clicked(self):
@@ -908,43 +1188,43 @@ class GuiTests(unittest.TestCase):
         self.ui.pages.select(self.ui.demo_page)
         self.root.update()
         for i in range(100):
-            self.ui.append_demo('line {}'.format(i))
+            self.ui.demo_page.append_demo('line {}'.format(i))
         self.root.update_idletasks()
-        self.assertTrue(self.ui.demo_log_at_end())
-        self.ui.demo_text.yview_moveto(0)
+        self.assertTrue(self.ui.demo_page.demo_log_at_end())
+        self.ui.demo_page.demo_text.yview_moveto(0)
         self.root.update_idletasks()
-        self.assertFalse(self.ui.demo_log_at_end())
-        self.ui.append_demo('new output while reading')
+        self.assertFalse(self.ui.demo_page.demo_log_at_end())
+        self.ui.demo_page.append_demo('new output while reading')
         self.root.update_idletasks()
-        self.assertEqual(self.ui.demo_text.index('@0,0'), '1.0')
-        self.ui.demo_latest_button.invoke()
+        self.assertEqual(self.ui.demo_page.demo_text.index('@0,0'), '1.0')
+        self.ui.demo_page.demo_latest_button.invoke()
         self.root.update_idletasks()
-        self.assertTrue(self.ui.demo_log_at_end())
+        self.assertTrue(self.ui.demo_page.demo_log_at_end())
 
     def test_demo_clock_finishes_and_log_routing_does_not_parse_script_text(self):
-        self.ui.demo_grid.set_tasks([('1', '模块', ['IoT/a.py'], None), ('2', '模块2', ['IoT/b.py'], None)])
-        self.ui.demo_tasks = {key: {'task': {'TrainTaskName': '模块' + key}, 'scripts': ['IoT/a.py'], 'valid': True} for key in ('1', '2')}
-        self.ui.begin_demo(['1', '2'])
+        self.ui.demo_page.demo_grid.set_tasks([('1', '模块', ['IoT/a.py'], None), ('2', '模块2', ['IoT/b.py'], None)])
+        self.ui.demo_page.demo_tasks = {key: {'task': {'TrainTaskName': '模块' + key}, 'scripts': ['IoT/a.py'], 'valid': True} for key in ('1', '2')}
+        self.ui.demo_page.begin_demo(['1', '2'])
         now = time.monotonic()
-        self.ui.demo_started_at = now - 3661
-        self.ui.demo_progress_event({'task_id': '1', 'index': 1, 'total': 2, 'phase': 'running', 'started': now - 65, 'elapsed': 65})
-        self.assertIn('01:05', self.ui.demo_progress_text.get())
-        self.assertIn('1:01:01', self.ui.demo_elapsed_text.get())
-        self.ui.demo_grid.select('1')
-        self.ui.demo_log_mode.set('当前模块日志')
-        self.ui.append_demo({'task_id': '1', 'line': '[2 模块2] 日志：fake.log', 'level': 'error'})
-        self.ui.append_demo({'task_id': '2', 'line': '[1 模块1] wrong-module'})
-        self.ui.render_demo_logs()
-        self.assertIn('fake.log', self.ui.demo_text.get('1.0', 'end'))
-        self.assertNotIn('wrong-module', self.ui.demo_text.get('1.0', 'end'))
-        self.assertIsNone(self.ui.demo_all_log)
-        self.assertTrue(self.ui.demo_text.tag_ranges('error'))
-        self.ui.demo_running = False
-        self.ui.finish_demo_cards("stopped")
-        finished = self.ui.demo_elapsed_text.get()
-        with patch('app.time.monotonic', return_value=self.ui.demo_finished_at + 60):
-            self.ui.update_demo_clock()
-        self.assertEqual(finished, self.ui.demo_elapsed_text.get())
+        self.ui.demo_page.demo_started_at = now - 3661
+        self.ui.demo_page.demo_progress_event({'task_id': '1', 'index': 1, 'total': 2, 'phase': 'running', 'started': now - 65, 'elapsed': 65})
+        self.assertIn('01:05', self.ui.demo_page.demo_progress_text.get())
+        self.assertIn('1:01:01', self.ui.demo_page.demo_elapsed_text.get())
+        self.ui.demo_page.demo_grid.select('1')
+        self.ui.demo_page.demo_log_mode.set('当前模块日志')
+        self.ui.demo_page.append_demo({'task_id': '1', 'line': '[2 模块2] 日志：fake.log', 'level': 'error'})
+        self.ui.demo_page.append_demo({'task_id': '2', 'line': '[1 模块1] wrong-module'})
+        self.ui.demo_page.render_demo_logs()
+        self.assertIn('fake.log', self.ui.demo_page.demo_text.get('1.0', 'end'))
+        self.assertNotIn('wrong-module', self.ui.demo_page.demo_text.get('1.0', 'end'))
+        self.assertIsNone(self.ui.demo_page.demo_all_log)
+        self.assertTrue(self.ui.demo_page.demo_text.tag_ranges('error'))
+        self.ui.demo_page.running = False
+        self.ui.demo_page.finish_demo_cards("stopped")
+        finished = self.ui.demo_page.demo_elapsed_text.get()
+        with patch('publish_switcher.gui.pages.demo.time.monotonic', return_value=self.ui.demo_page.demo_finished_at + 60):
+            self.ui.demo_page.update_demo_clock()
+        self.assertEqual(finished, self.ui.demo_page.demo_elapsed_text.get())
 
     def test_gui_stop_and_close_wait_for_demo_cleanup(self):
         import json
@@ -959,34 +1239,34 @@ class GuiTests(unittest.TestCase):
             (target / "TrainTaskInfo.json").write_text(json.dumps([task]), encoding="utf-8")
             self.ui.engine = Engine(target)
             self.ui.target.set(str(target))
-            self.ui.refresh_demo_tasks()
+            self.ui.demo_page.refresh_demo_tasks()
             self.wait_job()
-            self.ui.demo_grid.select("1")
+            self.ui.demo_page.demo_grid.select("1")
             self.root.update()
             def wait_started():
                 deadline = time.monotonic() + 5
-                while "demo-started" not in self.ui.demo_text.get("1.0", "end") and time.monotonic() < deadline:
+                while "demo-started" not in self.ui.demo_page.demo_text.get("1.0", "end") and time.monotonic() < deadline:
                     self.root.update()
                     time.sleep(.02)
-                self.assertIn("demo-started", self.ui.demo_text.get("1.0", "end"))
-            with patch.object(app, "CONFIG", base / "settings.json"), patch("app.messagebox.askyesno", return_value=True):
-                self.ui.start_demo()
+                self.assertIn("demo-started", self.ui.demo_page.demo_text.get("1.0", "end"))
+            with patch.object(app, "CONFIG", base / "settings.json"), patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True):
+                self.ui.demo_page.start_demo()
                 wait_started()
-                self.ui.demo_stop_button.invoke()
+                self.ui.demo_page.demo_stop_button.invoke()
                 self.wait_job()
-                self.assertIn("已停止", self.ui.demo_status.get())
-                self.ui.start_demo()
+                self.assertIn("已停止", self.ui.demo_page.demo_status.get())
+                self.ui.demo_page.start_demo()
                 wait_started()
                 with patch.object(self.root, "destroy") as destroy:
                     self.ui.close()
                     self.assertTrue(self.ui.cancel.is_set())
                     self.wait_job()
                     destroy.assert_called_once()
-            self.assertFalse(self.ui.demo_running)
+            self.assertFalse(self.ui.demo_page.running)
 
     def test_green_same_row_and_selected_file_diagnostic(self):
-        from generate import generate
-        from core import read_json, load_profile
+        from publish_switcher.repositories.generate import generate
+        from tools.packaging.legacy.core import read_json, load_profile
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             source, target, repo = base / "source", base / "publish", base / "repo"
@@ -1001,34 +1281,34 @@ class GuiTests(unittest.TestCase):
             self.ui.target.set(str(target))
             self.ui.profiles = [{"manifest": manifest, "source": origin}]
             self.ui.show_profiles()
-            self.ui.tree.selection_set("0")
+            self.ui.files_view.tree.selection_set("0")
             self.root.update()
-            self.ui.preview()
+            self.ui.files_view.preview()
             self.wait_job()
-            row = self.ui.diff_tree.get_children()[0]
-            self.assertEqual(self.ui.diff_tree.item(row, "tags"), ("same",))
-            self.assertEqual(str(self.ui.diagnose_button.cget("state")), "disabled")
-            self.ui.diff_tree.selection_set(row)
+            row = self.ui.files_view.diff_tree.get_children()[0]
+            self.assertEqual(self.ui.files_view.diff_tree.item(row, "tags"), ("same",))
+            self.assertEqual(str(self.ui.files_view.diagnose_button.cget("state")), "disabled")
+            self.ui.files_view.diff_tree.selection_set(row)
             self.root.update()
-            self.assertEqual(str(self.ui.diagnose_button.cget("state")), "normal")
+            self.assertEqual(str(self.ui.files_view.diagnose_button.cget("state")), "normal")
             with patch.object(self.ui, "show_diagnostic") as display:
-                self.ui.diagnose_selected()
+                self.ui.files_view.diagnose_selected()
                 self.wait_job()
                 self.assertIn("字节完全一致", display.call_args[0][0]["reason"])
             self.assertEqual((target / "same.py").read_bytes(), b"print('same')\n")
             self.assertFalse(self.ui.sync_permissions.get())
-            self.ui.permissions_button.invoke()
+            self.ui.files_view.permissions_button.invoke()
             self.assertTrue(self.ui.sync_permissions.get())
             self.assertIsNone(self.ui.checked)
-            self.assertEqual(str(self.ui.apply_button.cget("state")), "disabled")
-            self.ui.preview()
+            self.assertEqual(str(self.ui.files_view.apply_button.cget("state")), "disabled")
+            self.ui.files_view.preview()
             self.wait_job()
             self.assertTrue(self.ui.checked["sync_permissions"])
 
     def test_worker_failure_unblocks_controls(self):
         def fail():
             raise ValueError("expected test failure")
-        with patch("app.messagebox.showerror") as error:
+        with patch("publish_switcher.gui.app.messagebox.showerror") as error:
             self.ui.run(fail, lambda _: self.fail("unexpected success"))
             self.wait_job()
             error.assert_called_once()
@@ -1043,25 +1323,25 @@ class GuiTests(unittest.TestCase):
             self.ui.engine = Engine(target)
             self.ui.target.set(str(target))
             self.assertEqual(len(self.ui.permission_preset_buttons), 3)
-            with patch("app.sys.platform", "linux"), patch("app.messagebox.askyesno", return_value=False), patch("app.launch_preset") as launcher:
+            with patch("publish_switcher.gui.app.sys.platform", "linux"), patch("publish_switcher.gui.app.messagebox.askyesno", return_value=False), patch("publish_switcher.gui.app.launch_preset") as launcher:
                 self.ui.apply_permission_preset("root-and-777")
                 launcher.assert_not_called()
-            with patch("app.sys.platform", "linux"), patch("app.messagebox.askyesno", return_value=True) as confirmation, \
-                    patch("app.launch_preset", return_value={"target": str(target), "preset": "root-and-777"}) as launcher:
+            with patch("publish_switcher.gui.app.sys.platform", "linux"), patch("publish_switcher.gui.app.messagebox.askyesno", return_value=True) as confirmation, \
+                    patch("publish_switcher.gui.app.launch_preset", return_value={"target": str(target), "preset": "root-and-777"}) as launcher:
                 self.ui.apply_permission_preset("root-and-777")
                 self.wait_job()
                 if self.ui.busy:
                     self.wait_job()
                 self.assertIs(launcher.call_args.args[0], self.ui.engine)
-                self.assertIn(str(target), confirmation.call_args.args[1])
+                self.assertIn(str(target.resolve()), confirmation.call_args.args[1])
                 self.assertIn("不生成备份", confirmation.call_args.args[1])
                 self.assertIn("root:root", confirmation.call_args.args[1])
             self.assertIsNone(self.ui.checked)
 
     def test_diagnostic_window_colors_additions_and_deletions(self):
-        from generate import generate
-        from core import read_json, load_profile
-        from file_compare import diagnose_file
+        from publish_switcher.repositories.generate import generate
+        from tools.packaging.legacy.core import read_json, load_profile
+        from publish_switcher.sync.diagnostics import diagnose_file
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             source, target, repo = base / "source", base / "publish", base / "repo"
@@ -1078,8 +1358,8 @@ class GuiTests(unittest.TestCase):
             text = window.diff_text
             self.assertTrue(text.tag_ranges("add"))
             self.assertTrue(text.tag_ranges("delete"))
-            self.assertEqual(text.tag_cget("add", "foreground"), "#91e2bb")
-            self.assertEqual(text.tag_cget("delete", "foreground"), "#ffaaa6")
+            self.assertEqual(text.tag_cget("add", "foreground"), app.COLORS["green"])
+            self.assertEqual(text.tag_cget("delete", "foreground"), app.COLORS["red"])
             self.assertIn("-local value", text.get("1.0", "end"))
             self.assertIn("+remote value", text.get("1.0", "end"))
             self.assertNotIn("local value", self.ui.text.get("1.0", "end"))

@@ -12,10 +12,17 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import switcher
-from generate import generate
+from publish_switcher.repositories.generate import generate
 
 
 class CliTests(unittest.TestCase):
+    def test_version_probe_remains_compatible_with_already_installed_update_helpers(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), self.assertRaises(SystemExit) as exit_status:
+            switcher.parser().parse_args(["--version"])
+        self.assertEqual(exit_status.exception.code, 0)
+        self.assertEqual(output.getvalue().strip(), "Publish Switcher " + switcher.VERSION)
+
     def setUp(self):
         temp_root = Path(os.environ.get("PUBLISH_SWITCHER_TEST_TMP", str(Path(__file__).resolve().parent / ".tmp")))
         temp_root.mkdir(parents=True, exist_ok=True)
@@ -29,7 +36,7 @@ class CliTests(unittest.TestCase):
         self.config_patch = patch("switcher.settings", return_value={})
         self.config_patch.start()
         self.addCleanup(self.config_patch.stop)
-        self.proc_patch = patch("core.assert_stopped")
+        self.proc_patch = patch("publish_switcher.sync.engine.assert_stopped")
         self.proc_patch.start()
         self.addCleanup(self.proc_patch.stop)
 
@@ -208,7 +215,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual((self.target / "script.py").read_bytes(), b"print('ok')\r\n")
 
     def test_diagnose_does_not_trigger_transaction_recovery(self):
-        from core import Engine
+        from tools.packaging.legacy.core import Engine
         source, repo = self.base / "source", self.base / "repo"
         source.mkdir()
         (source / "script.py").write_bytes(b"print('ok')\n")

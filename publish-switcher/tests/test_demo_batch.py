@@ -7,9 +7,9 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import iot_runner as runner
+from publish_switcher.demo import runner as runner
 import test_iot_runner
-from core import Engine, SyncError
+from tools.packaging.legacy.core import Engine, SyncError
 
 
 class BatchTests(unittest.TestCase):
@@ -43,7 +43,7 @@ class BatchTests(unittest.TestCase):
             process = original_launch(*args, **kwargs)
             processes.append(process)
             return process
-        with patch('iot_runner.subprocess.Popen', side_effect=launch):
+        with patch('publish_switcher.demo.runner.subprocess.Popen', side_effect=launch):
             self.assertEqual(runner.run_many(self.publish, [1, 2], self.logs, output=lines.append, state=states.append,
                                              expected_tasks=tasks), 0)
         self.assertEqual((self.publish / 'order').read_text(), '2\n1\n')
@@ -146,7 +146,7 @@ class BatchTests(unittest.TestCase):
 
     def test_start_failure_reports_failed_instead_of_not_started(self):
         states = []
-        with patch('iot_runner.subprocess.Popen', side_effect=OSError('test launch failure')):
+        with patch('publish_switcher.demo.runner.subprocess.Popen', side_effect=OSError('test launch failure')):
             code = runner.run_selected(self.publish, 2, self.logs, state=states.append, output=lambda line: None)
         self.assertEqual(code, 1)
         self.assertEqual(states[-1]['phase'], 'failed')
@@ -156,7 +156,7 @@ class BatchTests(unittest.TestCase):
         cancel = threading.Event()
         cancel.set()
         states = []
-        with patch('iot_runner.subprocess.Popen') as launch:
+        with patch('publish_switcher.demo.runner.subprocess.Popen') as launch:
             self.assertEqual(runner.run_many(self.publish, [2], self.logs, cancel=cancel, state=states.append,
                                              output=lambda line: None), 130)
             launch.assert_not_called()
@@ -184,7 +184,7 @@ class BatchTests(unittest.TestCase):
             states.append(event)
             if event['task_id'] == '2' and event['phase'] == 'running':
                 self.assertFalse(control.request_skip('1'), 'a late click must not skip the next module')
-        with patch('iot_runner.subprocess.Popen', side_effect=launch):
+        with patch('publish_switcher.demo.runner.subprocess.Popen', side_effect=launch):
             result = runner.run_many(self.publish, [1, 2], self.logs, control=control, progress=progress.append,
                                      state=state, log_event=log, output=lambda line: None)
         self.assertEqual(result, 0)
@@ -239,7 +239,7 @@ class BatchTests(unittest.TestCase):
         def progress(event):
             if event['phase'] == 'running':
                 self.assertTrue(control.request_skip(event['task_id']))
-        with patch('iot_runner.subprocess.Popen') as launch:
+        with patch('publish_switcher.demo.runner.subprocess.Popen') as launch:
             self.assertEqual(runner.run_many(self.publish, [2], self.logs, control=control, progress=progress,
                                              state=states.append, output=lambda line: None), 0)
             launch.assert_not_called()

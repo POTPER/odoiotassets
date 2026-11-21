@@ -7,10 +7,10 @@ import urllib.error
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Source, SyncError, Cancelled
-from repository import DEFAULT_PROFILES, DEFAULT_REPOSITORY, LEGACY_DEFAULT_REPOSITORY
-from repository_sources import candidates, discover, normalize
-import tool_update
+from tools.packaging.legacy.core import Source, SyncError, Cancelled
+from publish_switcher.repositories.catalog import DEFAULT_PROFILES, DEFAULT_REPOSITORY, LEGACY_DEFAULT_REPOSITORY
+from publish_switcher.repositories.discovery import candidates, discover, normalize
+from publish_switcher.updates import bootstrap as tool_update
 
 
 class GitLabTests(unittest.TestCase):
@@ -57,8 +57,8 @@ class GitLabTests(unittest.TestCase):
 
     def test_gitlab_native_manifest_sync_and_offline_descriptor(self):
         import hashlib
-        from core import Engine
-        from repository import remote_profiles, directory_manifest
+        from tools.packaging.legacy.core import Engine
+        from publish_switcher.repositories.catalog import remote_profiles, directory_manifest
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             remote = base / "repo"
@@ -102,7 +102,7 @@ class RepositoryChainTests(unittest.TestCase):
         source = Source(owner="POTPER", repo="odoiotassets", commit="b" * 40)
         items = [{"source": source, "profile": {"id": "rk", "version": "1"}}]
         with patch.object(Source, "remote", side_effect=[urllib.error.HTTPError("api", 403, "Forbidden", {}, None), source]) as connect, \
-             patch("repository_sources.remote_profiles", return_value=items):
+             patch("publish_switcher.repositories.discovery.remote_profiles", return_value=items):
             actual = discover(values, DEFAULT_PROFILES)
         self.assertIs(actual, items)
         self.assertEqual(connect.call_count, 2)
@@ -113,7 +113,7 @@ class RepositoryChainTests(unittest.TestCase):
         values = normalize([DEFAULT_REPOSITORY, LEGACY_DEFAULT_REPOSITORY])
         a, b = Source(commit="a" * 40), Source(commit="b" * 40)
         items = [{"source": b, "profile": {"id": "rk", "version": "2"}}]
-        with patch.object(Source, "remote", side_effect=[a, b]), patch("repository_sources.remote_profiles", side_effect=[ValueError("invalid catalog"), items]):
+        with patch.object(Source, "remote", side_effect=[a, b]), patch("publish_switcher.repositories.discovery.remote_profiles", side_effect=[ValueError("invalid catalog"), items]):
             self.assertEqual(discover(values, DEFAULT_PROFILES, profile="rk")[0]["source"].commit, "b" * 40)
         with patch.object(Source, "remote", side_effect=Cancelled("cancel")) as connect:
             with self.assertRaises(Cancelled):
@@ -139,7 +139,7 @@ class RepositoryChainTests(unittest.TestCase):
             install = Path(directory) / "switcher"
             install.mkdir()
             source = Source()
-            with patch("tool_update.remote_file", side_effect=[urllib.error.HTTPError("raw", 403, "Forbidden", {}, None), (source, "metadata")]) as locate, \
+            with patch("publish_switcher.updates.release.remote_file", side_effect=[urllib.error.HTTPError("raw", 403, "Forbidden", {}, None), (source, "metadata")]) as locate, \
                  patch.object(source, "metadata", return_value=json.dumps(release).encode()):
                 result, newer = tool_update.check_release(tool_update.DEFAULT_UPDATE_URL, install, "2026.11.20.4", repositories=values)
             self.assertTrue(newer)

@@ -9,10 +9,10 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import core
-from core import Engine, Source, SyncError, Cancelled, atomic_json, read_json, scan
-from assets_sync import AssetsEngine, format_details
-from generate import generate
+from tools.packaging.legacy import core as core
+from tools.packaging.legacy.core import Engine, Source, SyncError, Cancelled, atomic_json, read_json, scan
+from publish_switcher.sync.assets import AssetsEngine, format_details
+from publish_switcher.repositories.generate import generate
 import test_sync
 
 
@@ -104,12 +104,12 @@ class AssetsTests(unittest.TestCase):
         self.build_assets()
         before = scan(self.target)
         for name, value in (("disk", SimpleNamespace(free=0)), ("program", None)):
-            context = patch("core.shutil.disk_usage", return_value=value) if name == "disk" else patch("core.assert_stopped", side_effect=SyncError("running"))
+            context = patch("publish_switcher.sync.engine.shutil.disk_usage", return_value=value) if name == "disk" else patch("publish_switcher.sync.engine.assert_stopped", side_effect=SyncError("running"))
             with context, patch.object(self.origin, "download") as download:
                 with self.assertRaises(SyncError):
                     self.engine.download_missing(self.manifest, self.origin)
                 download.assert_not_called()
-        with patch("core.os.access", return_value=False):
+        with patch("publish_switcher.sync.engine.os.access", return_value=False):
             with self.assertRaisesRegex(SyncError, "权限"):
                 self.engine.download_missing(self.manifest, self.origin)
         self.assertEqual(scan(self.target), before)
@@ -138,7 +138,7 @@ class AssetsTests(unittest.TestCase):
                 entry.pop("sha256", None)
         resource = next(e for e in manifest["entries"] if e["path"] == "Assets/missing.avi")
         resource["source"] = "https://example.com/releases/missing.avi"
-        with patch("core.urllib.request.build_opener") as opener:
+        with patch("publish_switcher.repositories.source.urllib.request.build_opener") as opener:
             opener.return_value.open.return_value = io.BytesIO(b"video-data")
             self.engine.download_missing(manifest, self.origin)
         self.assertEqual((self.target / "Assets/missing.avi").read_bytes(), b"video-data")
@@ -182,7 +182,7 @@ class AssetsTests(unittest.TestCase):
             if count == 2:
                 raise OSError("switch failed")
             return original(src, dst)
-        with patch("core.os.rename", side_effect=fail_second):
+        with patch("publish_switcher.sync.engine.os.rename", side_effect=fail_second):
             with self.assertRaisesRegex(OSError, "switch failed"):
                 self.engine.download_missing(self.manifest, self.origin)
         self.assertEqual(scan(self.target), before)

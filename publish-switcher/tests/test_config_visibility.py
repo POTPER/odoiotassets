@@ -7,8 +7,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import test_sync
 from test_config_versions import write_bundle
-from config_visibility import read_policy, resolve_version, save_policy, validate_policy
-from core import Engine, SyncError, atomic_json
+from publish_switcher.configuration.visibility import read_policy, resolve_version, save_policy, validate_policy
+from tools.packaging.legacy.core import Engine, SyncError, atomic_json
 
 
 class VisibilityTests(unittest.TestCase):
@@ -74,12 +74,12 @@ class VisibilityTests(unittest.TestCase):
         with self.assertRaises(SyncError):
             engine.activate_config_version("教学", expected_snapshot=preview["snapshot"], user_only=True)
         self.policy()
-        from config_versions import _write_file
+        from publish_switcher.configuration.versions import _write_file
         def change_policy(path, raw, mode):
             _write_file(path, raw, mode)
             if path.parent.name.startswith("config-stage-"):
                 self.policy(default_user_visible=False)
-        with patch("config_versions._write_file", side_effect=change_policy), self.assertRaises(SyncError):
+        with patch("publish_switcher.configuration.versions._write_file", side_effect=change_policy), self.assertRaises(SyncError):
             engine.activate_config_version("教学", user_only=True)
         self.assertEqual(old, {path.name: path.read_bytes() for path in self.target.glob("*.json")})
 

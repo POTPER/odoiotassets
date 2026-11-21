@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Engine, Source, SyncError
-from repository import (DEFAULT_REPOSITORY, DEFAULT_PROFILES, LEGACY_DEFAULT_REPOSITORY,
+from tools.packaging.legacy.core import Engine, Source, SyncError
+from publish_switcher.repositories.catalog import (DEFAULT_REPOSITORY, DEFAULT_PROFILES, LEGACY_DEFAULT_REPOSITORY,
                         directory_manifest, remote_profiles, repository_from_settings)
 import test_sync
 

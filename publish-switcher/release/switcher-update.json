@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "product": "publish-switcher",
-  "version": "2026.11.20.6",
+  "version": "2026.11.21.1",
   "url": "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/publish-switcher.zip",
   "package_file": "publish-switcher.zip",
-  "size": 32057021,
-  "sha256": "027aa6503efb445a8f9ad7e9085e10ed77db78813fb1e06eff67f1d4cd05a252",
-  "notes": "小窗一键更新 Switcher 与 RK publish，自动检查并严格同步已选格式；用户配置列表默认隐藏 . / F 前缀，可由 JSON 明确开放。"
+  "size": 32661461,
+  "sha256": "b7e807e1e201369e4f51c4ba2a781f98f40ec4eb5c266f3a8f0ddf3e1600ae70",
+  "notes": "归类源码中的安装脚本和升级入口，按清单构建单包并保留旧版升级路径。"
 }

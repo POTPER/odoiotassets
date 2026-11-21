@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import iot_runner as iotdemo
+from publish_switcher.demo import runner as iotdemo
 
 
 class RunnerTests(unittest.TestCase):
@@ -129,7 +129,7 @@ class RunnerTests(unittest.TestCase):
             self.save([replacement])
             return "2"
         with patch("builtins.input") as read, \
-                patch("iot_runner.run_task", return_value=0) as run, contextlib.redirect_stdout(io.StringIO()):
+                patch("publish_switcher.demo.runner.run_task", return_value=0) as run, contextlib.redirect_stdout(io.StringIO()):
             # Mock input needs a function side effect to perform the configuration change.
             responses = iter([choose, lambda _: "q"])
             read.side_effect = lambda prompt: next(responses)(prompt)
@@ -196,9 +196,10 @@ class RunnerTests(unittest.TestCase):
             "Path('grandchild.pid').write_text(str(child.pid))\n"
             "try:\n    time.sleep(30)\n"
             "finally:\n    child.wait()\n", encoding="utf-8")
-        runner = subprocess.Popen([sys.executable, str(Path(iotdemo.__file__)), "--publish", str(self.publish),
+        root = Path(__file__).resolve().parents[1]
+        runner = subprocess.Popen([sys.executable, "-m", "publish_switcher.demo.runner", "--publish", str(self.publish),
                                    "--task", "2", "--log-dir", str(self.logs)],
-                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
+                                  cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
         try:
             deadline = time.monotonic() + 5
             while not pidfile.exists() and time.monotonic() < deadline:
@@ -219,21 +220,21 @@ class RunnerTests(unittest.TestCase):
         ast.parse(Path(iotdemo.__file__).read_text(encoding="utf-8"), feature_version=8)
 
     def test_selected_task_holds_switcher_lock_until_return(self):
-        from core import Engine, SyncError
+        from tools.packaging.legacy.core import Engine, SyncError
         def run(publish, task, log_dir, **kwargs):
             with self.assertRaises(SyncError):
                 with Engine(publish).lock():
                     self.fail("Concurrent update must be blocked")
             self.assertEqual(task["TrainTaskId"], 2)
             return 0
-        with patch("iot_runner.run_task", side_effect=run):
+        with patch("publish_switcher.demo.runner.run_task", side_effect=run):
             self.assertEqual(iotdemo.run_selected(self.publish, "2", self.logs), 0)
         with Engine(self.publish).lock():
             pass  # Lock released when Demo exits.
 
     def test_active_program_blocks_demo_launch(self):
-        from core import SyncError
-        with patch("iot_runner.assert_stopped", side_effect=SyncError("主程序仍在运行")), patch("iot_runner.run_task") as run:
+        from tools.packaging.legacy.core import SyncError
+        with patch("publish_switcher.demo.runner.assert_stopped", side_effect=SyncError("主程序仍在运行")), patch("publish_switcher.demo.runner.run_task") as run:
             with self.assertRaisesRegex(SyncError, "主程序"):
                 iotdemo.run_selected(self.publish, "2", self.logs)
             run.assert_not_called()

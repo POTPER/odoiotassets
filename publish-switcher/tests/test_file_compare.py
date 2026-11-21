@@ -8,8 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Engine, Source, SyncError, Cancelled
-from file_compare import comparison_self_test, diagnose_file, format_report, text_reason, text_diff, format_diff
+from tools.packaging.legacy.core import Engine, Source, SyncError, Cancelled
+from publish_switcher.sync.diagnostics import comparison_self_test, diagnose_file, format_report, text_reason, text_diff, format_diff
 
 
 class FileCompareTests(unittest.TestCase):
@@ -161,18 +161,18 @@ class FileCompareTests(unittest.TestCase):
         self.assertTrue(any(r["kind"] == "add" and r["text"] == "++++ new" for r in diff["rows"]))
 
     def test_binary_large_inputs_and_output_truncation_are_explicit(self):
-        import file_compare
+        from publish_switcher.sync import diagnostics as file_compare
         self.assertEqual(text_diff(b"\xff", b"x", "file.py")["kind"], "binary")
         self.assertEqual(text_diff(b"\x00", b"x", "file.py")["kind"], "binary")
         self.assertEqual(text_diff(b"x" * (file_compare.DIFF_INPUT_LIMIT + 1), b"x", "file.py")["kind"], "limited")
         self.assertEqual(text_diff(b"x\n" * (file_compare.DIFF_LINE_LIMIT + 1), b"x", "file.py")["kind"], "limited")
         self.assertEqual(text_diff(b"x\n" * file_compare.DIFF_LINE_LIMIT + b"x", b"x", "file.py")["kind"], "limited")
-        with patch("file_compare.DIFF_OUTPUT_LINES", 5):
+        with patch("publish_switcher.common.text_diff.DIFF_OUTPUT_LINES", 5):
             diff = text_diff(b"a\nb\nc\nd\n", b"e\nf\ng\nh\n", "file.py")
         self.assertTrue(diff["truncated"])
         self.assertIn("截断", diff["note"])
         self.assertLessEqual(len(diff["rows"]), 5)
-        with patch("file_compare.DIFF_OUTPUT_LINES", 4):
+        with patch("publish_switcher.common.text_diff.DIFF_OUTPUT_LINES", 4):
             diff = text_diff(b"no final newline", b"new content\n", "file.py")
         self.assertTrue(diff["truncated"])
         self.assertLessEqual(len(diff["rows"]), 4)

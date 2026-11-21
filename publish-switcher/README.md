@@ -1,10 +1,92 @@
-# publish 文件同步与配置工具
+# swicher
 
 “金砖赛事版本”启动器已独立到仓库根目录的 `aiot-launcher` 文件夹。安装和背景图片说明见 [启动器使用说明](../aiot-launcher/README.md)，请在该文件夹运行 `python3 aiot_launcher.py`。
 
 中文桌面工具，面向 Ubuntu ARM64，Python 3.8+ / Tkinter，无 pip 依赖，兼容设备上的 Python 3.8.10。
 
+## 代码与发布
+
+源码可通过 `python3 -m publish_switcher gui` 或 `python3 -m publish_switcher cli` 启动，原有 `python3 switcher.py` 命令也可继续使用。安装脚本集中在 `install/`，从源码安装可执行 `bash install/install.sh`。独立在线安装脚本位于 `install/install_online.py`。
+
+开发文档集中在 `docs/`，包括[模块地图](docs/module-map.md)、[产品记录](docs/productlog.md)和[验证记录](docs/VALIDATION.md)。
+
+在线和离线继续共用 `release/publish-switcher.zip`。如果修改了 `publish_switcher/updates/package.py`，先运行 `python3 tools/build_update.py --sync-installer`，然后运行 `python3 tools/build_update.py`。构建会检查版本、程序文件、图标、自测样例和本地 `debs/SHA256SUMS` 列出的离线依赖，再生成 ZIP 和配套清单。
+
+构建脚本按清单组装 ZIP。解压后的安装包仍从根目录运行 `bash install.sh`。旧版需要的根目录文件由 `tools/packaging/legacy/` 中的兼容入口、安装脚本及包内实现组装。ZIP 中的 `tool_update.py` 是完整的独立恢复脚本，可在安装目录外启动。
+
+## 独立 Python 在线安装脚本
+
+`install_online.py` 可以单独复制到 Ubuntu 上，不必预先下载整个仓库。使用 Python 3.8+ 标准库依次尝试 Gitee、GitHub，读取仓库最新发布信息，仅下载 Switcher 安装包，检查大小、SHA-256 与解压路径后运行现有 `install.sh`；不下载或修改 publish 资源。
+
+```bash
+python3 install_online.py
+# 纯 SSH 命令行版
+python3 install_online.py --cli
+# 安装到另一个新目录
+python3 install_online.py --directory "$HOME/publish-switcher-new"
+```
+
+默认在 `install_online.py` 所在目录下新建 `publish-switcher` 文件夹，与终端当前工作目录无关。例如安装脚本在 `/home/ztl/音乐/install_online.py`，安装到 `/home/ztl/音乐/publish-switcher/`。`--directory` 可指定其他路径。已有安装目录（含符号链接）会停止，不覆盖旧安装。请以登录用户运行，安装依赖时现有脚本会按需请求 sudo。准备阶段下载失败不创建安装目录；文件复制或依赖安装失败时保留新目录便于排查，补齐依赖后可以进入该目录重跑 `bash install.sh`（命令行版加 `--cli`）。此 Python 脚本独立提供，不依赖安装包是否已包含该脚本。
+
 ## 用户界面和程序更新
+
+### 参考图界面与生成素材（2026.11.20.10，当前界面）
+
+普通用户保留“程序更新”“配置切换”两页，使用深蓝侧栏、浅蓝主区和圆角卡片。程序页展示当前工具版本、真实检查状态与该通道最近一次成功检查时间，保留通道选择和一键更新；未检查显示“—”，失败不伪造成功时间。工程师详情、IoT Demo、离线维护与日志仍通过 Ctrl+Shift+F12 进入。
+
+配置页的三张卡片显示可用配置数量、实际匹配的当前配置和三个根目录 JSON 的读取状态。列表逐行提供“应用”，当前使用的版本禁用该按钮；确认后原样替换三个 JSON，仍执行源快照复核、进程检查、备份与失败回滚。显示“实施配置”时不泄露隐藏目录名；多个可见目录内容相同会全部标记为当前匹配。读取失败、规则无效或更换目标目录时清除旧行，防止迟到数据覆盖新目录。
+
+窗口最小为 900×640，宽度不足 1100 时侧栏收窄，表格收起更新时间和说明列，保留应用操作。配置表支持滚动、Tab、上下方向键、Home/End、Enter；切换期间相关操作禁用。以下较旧版本的界面说明仅用于历史参考，以本节为准。
+
+#### 可选版本元数据
+
+在 `publish/config/versions.json` 的逐目录设置中可填写：
+
+```json
+{
+  "versions": {
+    "教学版本1": {
+      "display_name": "教学演示配置",
+      "release_version": "v1.2.0",
+      "updated_at": "2026-11-20 12:34:56",
+      "description": "教学与演示场景",
+      "order": 1
+    }
+  }
+}
+```
+
+三个新增字段均为可选单行字符串，分别最多 64、64、512 字。`updated_at` 原样展示发布者填写的时间，不读取下载或复制时间替代。缺失字段显示“—”；不猜测版本号。内部版本标识仍是实际文件夹名称，`release_version` 只用于展示。工程师版本设置表可编辑这些字段，修改可见性、别名或排序时会保留元数据。
+
+旧配置无需改动，`. / F` 隐藏和逐目录开放规则继续有效。先升级工具，再向资源仓库发布含新字段的规则文件；更旧工具的规则校验尚不认识新增字段。本工具不会自动改写你的资源配置。
+
+#### 生成图片与图标
+
+已使用内置 imagegen 生成侧栏背景、更新页玻璃层叠插画、应用图标、更新图标和配置图标。运行时仅加载包内 PNG，保留透明通道，不依赖网络或 Pillow。图片缺失时退回基本绘制；文字、按钮、状态均为真实控件。桌面与标题栏也使用新的应用图标，在工具目录运行 `bash install.sh` 可刷新旧桌面图标。
+
+原始生成图及完整提示词保存在仓库 `design-assets/swicher-v10/`。开发环境可用 `python publish-switcher/tools/prepare_ui_assets.py` 重新导出显示尺寸，该构建步骤使用 Pillow。安装包仅包含显示尺寸资源，不包含原始大图，以控制包体积。
+
+### 用户主框架精简（2026.11.20.9）
+
+普通用户在版本检查通过后只显示“程序更新”和“配置切换”两个入口。更新页只保留版本、通道按钮和“更新”；设备设置提示、详情按钮、发布说明及底部状态／日志栏不在普通用户主界面显示。更新过程的小窗、实际错误提示和日志保留。
+
+IoT Demo、状态信息、发布说明、离线维护和其他调试功能保留在工程师面板，按 Ctrl+Shift+F12 进入；返回用户界面后全部重新隐藏。启动版本检查和必更限制继续生效。
+
+### 更新通道与白色界面（2026.11.20.8）
+
+软件显示名称统一为 **swicher**，默认白色界面。程序更新页保留版本、通道按钮、“更新”和折叠的“详情”；主界面移除常驻状态徽标、重复说明和闲置取消按钮。完整错误、发布说明和下载日志仍可展开查看，比较与 Demo 的红绿状态保留。
+
+通道按工程师“设置 → 多仓库顺序 / 检测…”列表编号：通道一是第一项、通道二是第二项，以此类推。每次启动默认选择通道一；仓库新增、删除或排序后，按钮自动刷新并重选第一项。手动选择通道会清除旧检查结果并重新检查，停留更新页；检查期间切换通道后，迟到的旧结果不能解锁功能或用于安装。
+
+点击“更新”后，swicher 与 RK publish 都使用所选通道。程序发布信息和仓库内的安装包地址映射到该通道，仍校验完整大小与 SHA-256；失败时停止，用户关闭小窗后可以换通道重试。默认 Gitee 为通道一、GitHub 为通道二，具体以保存的列表顺序为准。工程师单独配置的外部发布服务器／CDN 地址保持原样。工程师手动刷新与 CLI 的仓库顺序后备规则保留。
+
+配置、缓存、日志、包名和更新产品标识继续使用原有路径，沿用旧安装数据。`--version` 的机器校验输出保持兼容已有外部更新助手，避免旧版升级时误判并回滚。桌面显示名称改为 swicher；旧快捷方式可在工具目录运行一次 `bash install.sh` 刷新，无需删除设置。
+
+### Gitee 403 与 Python 3.8 的 file 错误（2026.11.20.7）
+
+如果旧版日志显示 `HTTP Error 403: Forbidden` 后紧接 `AccessDenied: <unprintable AccessDenied object>`、`KeyError: 'file'`，是工具在 Python 3.8 中包装 HTTP 异常时未初始化响应对象，显示错误或关闭响应又失败，打断了仓库后备流程。该问题不是模型、字体或本地文件缺失。
+
+本版显式初始化异常响应，保持 HTTP 403 类型和接口提示，支持正常关闭。Gitee 仍返回 403 时按已配置顺序继续尝试 GitHub，逐项检测也会保留每个仓库的成功／失败结果。此修复不解除服务器的访问限制。若旧版无法自动更新，可退出后用完整新版目录覆盖，再启动 `python3 switcher.py gui`。
 
 ### 小窗一键更新（2026.11.20.6）
 
@@ -50,7 +132,7 @@ versions.json 随资源包的 JSON 文件一起更新。增量更新只补缺失
 
 ### 发布新版 Switcher
 
-更新 version.py 中的版本号后，在项目根目录运行：
+更新 `publish_switcher/version.py` 中的版本号后，在项目根目录运行：
 
 ~~~bash
 python3 publish-switcher/tools/build_update.py
@@ -519,7 +601,7 @@ executables 指定实际同步文件的仓库目标权限：新增文件使用�
 现有 publish_* 布局直接可用。需要明确发布版本或指定下载来源时，可以生成 catalog：
 
 ```bash
-python3 generate.py /path/to/source/publish /path/to/resource-repo \
+python3 -m publish_switcher.repositories.generate /path/to/source/publish /path/to/resource-repo \
   --id competition --name 比赛版 --version 1.0.0
 ```
 

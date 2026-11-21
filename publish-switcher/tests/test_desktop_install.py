@@ -11,7 +11,7 @@ import unittest
 
 class DesktopInstallTests(unittest.TestCase):
     def run_installer(self, source, directory, data, home, lookup=None):
-        installer = (source / "install.sh").read_text(encoding="utf-8")
+        installer = (source / "install/install.sh").read_text(encoding="utf-8")
         code = installer.split('<<\'PY\'\n', 1)[1].split('\nPY\n', 1)[0]
         # Only isolated filesystem writes; never invoke the real user's XDG/GIO services.
         wrapper = ("import pathlib, os, shutil, subprocess\n"
@@ -50,6 +50,7 @@ class DesktopInstallTests(unittest.TestCase):
                     shutil.copytree(tool, directory)
                 self.run_installer(source, directory, data, home)
                 desktop = (data / "applications/publish-switcher.desktop").read_text(encoding="utf-8")
+                self.assertIn("\nName=swicher\n", desktop)
                 icon_path = data / "icons/hicolor/256x256/apps/publish-switcher.png"
                 self.assertIn("Icon=" + str(icon_path).replace("\\", "\\\\") + "\n", desktop)
                 self.assertIn("StartupWMClass=PublishSwitcher\n", desktop)
@@ -59,12 +60,14 @@ class DesktopInstallTests(unittest.TestCase):
                 self.assertEqual(unrelated.read_text(encoding='utf-8'), 'unrelated app')
                 if os.name != 'nt':
                     self.assertEqual(shortcut.stat().st_mode & 0o777, 0o755)
-                for icon in (source / "icons").glob("*.png"):
-                    size = icon.stem.rsplit("-", 1)[1]
+                for size in (16, 24, 32, 48, 64, 128, 256, 512):
+                    icon = source / "icons" / "swicher-v10-{}.png".format(size)
+                    if not icon.exists():
+                        icon = source / "icons" / "publish-switcher-{}.png".format(size)
                     installed = data / "icons/hicolor" / ("{0}x{0}/apps/publish-switcher.png".format(size))
                     self.assertEqual(installed.read_bytes(), icon.read_bytes())
                 self.assertEqual((data / "icons/hicolor/scalable/apps/publish-switcher.svg").read_bytes(),
-                                 (source / "icons/publish-switcher.svg").read_bytes())
+                                 (source / "icons/swicher-v10.svg").read_bytes())
 
     def test_custom_xdg_desktop_and_disabled_desktop(self):
         source = Path(__file__).resolve().parents[1]
@@ -92,7 +95,7 @@ class DesktopInstallTests(unittest.TestCase):
             base = Path(directory)
             tool = base / "switcher"
             shutil.copytree(source / "icons", tool / "icons")
-            shutil.copyfile(source / "tool_update.py", tool / "tool_update.py")
+            shutil.copyfile(source / "publish_switcher/updates/bootstrap.py", tool / "tool_update.py")
             home = base / "home"
             home.mkdir()
             data = base / "data"
@@ -100,7 +103,7 @@ class DesktopInstallTests(unittest.TestCase):
             content = (data / "applications/publish-switcher.desktop").read_text(encoding="utf-8")
             self.assertIn("--launch", content)
             bootstrap = base / ".switcher-updater/bootstrap.py"
-            self.assertEqual(bootstrap.read_bytes(), (source / "tool_update.py").read_bytes())
+            self.assertEqual(bootstrap.read_bytes(), (source / "publish_switcher/updates/bootstrap.py").read_bytes())
             self.assertIn(str(bootstrap).replace("\\", "\\\\"), content)
 
     @unittest.skipUnless(sys.platform.startswith("linux"), "requires Bash")
@@ -117,7 +120,7 @@ class DesktopInstallTests(unittest.TestCase):
                               + shlex.quote(sys.executable) + ' "$@"\n', encoding="utf-8")
             python.chmod(0o755)
             env = dict(os.environ, PATH=str(base) + os.pathsep + os.environ["PATH"])
-            command = ["bash", str(source / "install.sh"), "--offline", "--deb-dir", str(base / "missing")]
+            command = ["bash", str(source / "install/install.sh"), "--offline", "--deb-dir", str(base / "missing")]
             cli = subprocess.run(command + ["--cli"], env=env, capture_output=True, text=True)
             self.assertEqual(cli.returncode, 0, cli.stderr)
             gui = subprocess.run(command, env=env, capture_output=True, text=True)
@@ -178,7 +181,7 @@ class DesktopInstallTests(unittest.TestCase):
             sudo.write_text('#!/bin/sh\nexec "$@"\n', encoding="utf-8")
             sudo.chmod(0o755)
             env = dict(os.environ, PATH=str(shim_dir) + os.pathsep + os.environ["PATH"])
-            command = ["bash", str(source / "install_offline_debs.sh"), str(packages), main_package]
+            command = ["bash", str(source / "install/install_offline_debs.sh"), str(packages), main_package]
             marker = packages / "PLATFORM"
             marker.write_text("ubuntu 0.0 arm64\n", encoding="utf-8")
             incompatible = subprocess.run(command, env=env, capture_output=True, text=True, timeout=30)

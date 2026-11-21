@@ -13,9 +13,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import core
-from core import Engine, Source, SyncError, Cancelled, atomic_json, digest, load_profile, scan, validate_manifest
-from generate import generate
+from tools.packaging.legacy import core as core
+from tools.packaging.legacy.core import Engine, Source, SyncError, Cancelled, atomic_json, digest, load_profile, scan, validate_manifest
+from publish_switcher.repositories.generate import generate
 REAL_ASSERT_STOPPED = core.assert_stopped
 
 
@@ -43,7 +43,7 @@ class SyncTests(unittest.TestCase):
         (self.target / "student_data").mkdir()
         (self.target / "student_data/result.json").write_bytes(b"runtime result")
         (self.target / "app.log").write_bytes(b"log")
-        self.process_guard = patch("core.assert_stopped")
+        self.process_guard = patch("publish_switcher.sync.engine.assert_stopped")
         self.process_guard.start()
         self.addCleanup(self.process_guard.stop)
 
@@ -110,7 +110,7 @@ class SyncTests(unittest.TestCase):
     def test_disk_space_failure_keeps_target(self):
         source, manifest = self.build()
         original = scan(self.target)
-        with patch("core.shutil.disk_usage", return_value=shutil._ntuple_diskusage(100, 100, 0)):
+        with patch("publish_switcher.sync.engine.shutil.disk_usage", return_value=shutil._ntuple_diskusage(100, 100, 0)):
             with self.assertRaises(SyncError):
                 Engine(self.target).apply(manifest, source)
         self.assertEqual(scan(self.target), original)
@@ -124,7 +124,7 @@ class SyncTests(unittest.TestCase):
             if Path(src).name.startswith("stage-") and Path(dst) == self.target:
                 raise PermissionError("injected install failure")
             return rename(src, dst)
-        with patch("core.os.rename", side_effect=fail_install):
+        with patch("publish_switcher.sync.engine.os.rename", side_effect=fail_install):
             with self.assertRaises(PermissionError):
                 engine.apply(manifest, source)
         self.assertEqual(scan(self.target), old)
@@ -141,7 +141,7 @@ class SyncTests(unittest.TestCase):
             if Path(src).name.startswith("stage-") and Path(dst) == self.target:
                 raise PermissionError("injected restore failure")
             return rename(src, dst)
-        with patch("core.os.rename", side_effect=fail_restore):
+        with patch("publish_switcher.sync.engine.os.rename", side_effect=fail_restore):
             with self.assertRaises(PermissionError):
                 engine.restore()
         self.assertEqual(scan(self.target), current)
@@ -317,7 +317,7 @@ class SyncTests(unittest.TestCase):
     def test_running_process_blocks_apply(self):
         source, manifest = self.build()
         original = scan(self.target)
-        with patch("core.assert_stopped", side_effect=SyncError("running")):
+        with patch("publish_switcher.sync.engine.assert_stopped", side_effect=SyncError("running")):
             with self.assertRaises(SyncError):
                 Engine(self.target).apply(manifest, source)
         self.assertEqual(scan(self.target), original)
@@ -340,7 +340,7 @@ class SyncTests(unittest.TestCase):
         source = Source()
         payload = b"network payload"
         expected = hashlib.sha256(payload).hexdigest()
-        with patch("core.urllib.request.build_opener") as opener:
+        with patch("publish_switcher.repositories.source.urllib.request.build_opener") as opener:
             opener.return_value.open.return_value = io.BytesIO(payload)
             source.download("https://example.com/file", self.base / "download", len(payload), expected, None, lambda n: None)
         self.assertEqual((self.base / "download").read_bytes(), payload)
@@ -349,7 +349,7 @@ class SyncTests(unittest.TestCase):
         source = Source()
         event = threading.Event()
         payload = b"x" * (2 * 1024 * 1024)
-        with patch("core.urllib.request.build_opener") as opener:
+        with patch("publish_switcher.repositories.source.urllib.request.build_opener") as opener:
             opener.return_value.open.return_value = io.BytesIO(payload)
             with self.assertRaises(Cancelled):
                 source.download("https://example.com/file", self.base / "cancelled", len(payload),

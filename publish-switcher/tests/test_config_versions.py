@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import test_sync
-import config_versions as bundles
-from core import Engine, SyncError, atomic_json
-from config_versions import CONFIG_NAMES
+from publish_switcher.configuration import versions as bundles
+from tools.packaging.legacy.core import Engine, SyncError, atomic_json
+from publish_switcher.configuration.versions import CONFIG_NAMES
 
 
 def write_bundle(target, name="赛事版本1", suffix=""):
@@ -129,7 +129,7 @@ class ConfigVersionTests(unittest.TestCase):
             writer(path, raw, mode)
             if path.parent.name.startswith("config-stage-"):
                 (self.target / "config/赛事版本1/TrainOverviewInfo.json").write_bytes(b"[]")
-        with patch("config_versions._write_file", side_effect=changing):
+        with patch("publish_switcher.configuration.versions._write_file", side_effect=changing):
             with self.assertRaisesRegex(SyncError, "重新检查"):
                 Engine(self.target).activate_config_version("赛事版本1")
         self.assert_active(old)
@@ -142,7 +142,7 @@ class ConfigVersionTests(unittest.TestCase):
             if Path(src).parent.name.startswith("config-stage-") and Path(src).name == CONFIG_NAMES[1]:
                 raise PermissionError("injected second replacement failure")
             return replace(src, dest)
-        with patch("config_versions.os.replace", side_effect=failing):
+        with patch("publish_switcher.configuration.versions.os.replace", side_effect=failing):
             with self.assertRaises(PermissionError):
                 Engine(self.target).activate_config_version("赛事版本1")
         self.assert_active(old)
@@ -158,7 +158,7 @@ class ConfigVersionTests(unittest.TestCase):
             if Path(src).parent.name.startswith("config-stage-") and Path(src).name == CONFIG_NAMES[2]:
                 raise OSError("injected last failure")
             return replace(src, dest)
-        with patch("config_versions.os.replace", side_effect=failing):
+        with patch("publish_switcher.configuration.versions.os.replace", side_effect=failing):
             with self.assertRaises(OSError):
                 Engine(self.target).activate_config_version("赛事版本1")
         self.assert_active(old)

@@ -11,9 +11,9 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import test_sync
-from core import Engine, Source, SyncError, scan, operation_lock
-import tool_update
-import unified_update as combined
+from tools.packaging.legacy.core import Engine, Source, SyncError, scan, operation_lock
+from publish_switcher.updates import bootstrap as tool_update
+from publish_switcher.updates import unified as combined
 
 
 class UnifiedUpdateTests(unittest.TestCase):
@@ -34,8 +34,8 @@ class UnifiedUpdateTests(unittest.TestCase):
         self.current = "2026.11.20.6"
         self.release = {"version": self.current, "notes": "same"}
         self.newer = False
-        self.discovery = patch("unified_update.discover", return_value=[self.item]).start()
-        self.check = patch("tool_update.check_release", side_effect=lambda *args, **kwargs: (self.release, self.newer)).start()
+        self.discovery = patch("publish_switcher.updates.unified.discover", return_value=[self.item]).start()
+        self.check = patch("publish_switcher.updates.release.check_release", side_effect=lambda *args, **kwargs: (self.release, self.newer)).start()
         self.addCleanup(patch.stopall)
 
     def update(self, **kwargs):
@@ -57,7 +57,7 @@ class UnifiedUpdateTests(unittest.TestCase):
                             url="https://example.org/tool.zip", package_file="tool.zip", size=package.stat().st_size,
                             sha256=hashlib.sha256(package.read_bytes()).hexdigest())
         self.newer = True
-        mock = patch("tool_update.remote_file", return_value=(Source(local=self.base), "tool.zip"))
+        mock = patch("publish_switcher.updates.release.remote_file", return_value=(Source(local=self.base), "tool.zip"))
         mock.start()
         self.addCleanup(mock.stop)
 
@@ -111,13 +111,24 @@ class UnifiedUpdateTests(unittest.TestCase):
         self.assertEqual(result["publish"], "已是最新版")
         tool_update.recover_update(self.install)
 
+    def test_selected_channel_reaches_both_publish_and_program_checks(self):
+        from publish_switcher.updates.channels import selected_channel
+        self.fixture()
+        rows = [{"url": "https://gitee.com/potper/odoiotassets"}, {"url": "https://github.com/POTPER/odoiotassets"}]
+        selected, address = selected_channel(rows, 1, tool_update.DEFAULT_UPDATE_URL)
+        result = self.update(repositories=selected, release_url=address)
+        self.assertTrue(result["success"])
+        self.assertEqual(self.discovery.call_args.args[0], selected)
+        self.assertEqual(self.check.call_args.args[0], address)
+        self.assertEqual(self.check.call_args.kwargs["repositories"], selected)
+
     def test_selected_empty_resource_blocks_before_tool_download(self):
         self.fixture()
         self.new_program()
         entry = next(e for e in self.manifest["entries"] if e["path"].endswith("hat30.py"))
         entry.update(size=0, sha256=hashlib.sha256(b"").hexdigest())
         before = scan(self.target)
-        with patch("tool_update.prepare_online") as prepare:
+        with patch("publish_switcher.updates.release.prepare_online") as prepare:
             result = self.update()
         self.assertFalse(result["success"])
         self.assertIn("为空", result["error"])
@@ -128,7 +139,7 @@ class UnifiedUpdateTests(unittest.TestCase):
         self.fixture()
         self.new_program()
         before = scan(self.target)
-        with patch("tool_update.prepare_online", side_effect=OSError("network failure")):
+        with patch("publish_switcher.updates.release.prepare_online", side_effect=OSError("network failure")):
             result = self.update()
         self.assertFalse(result["success"])
         self.assertEqual(scan(self.target), before)
@@ -157,7 +168,7 @@ class UnifiedUpdateTests(unittest.TestCase):
             cancel.set()
             return value
 
-        with patch("tool_update.prepare_online", side_effect=cancelled):
+        with patch("publish_switcher.updates.release.prepare_online", side_effect=cancelled):
             result = self.update(cancel=cancel)
         self.assertTrue(result["cancelled"])
         self.assertEqual(scan(self.target), before)
@@ -170,7 +181,7 @@ class UnifiedUpdateTests(unittest.TestCase):
             with patch.object(Engine, "preflight", side_effect=SyncError(failure)):
                 result = self.update()
             self.assertIn(failure, result["error"])
-        with patch("unified_update.shutil.disk_usage") as space:
+        with patch("publish_switcher.updates.unified.shutil.disk_usage") as space:
             space.return_value.free = 0
             self.assertIn("磁盘空间不足", self.update()["error"])
         self.assertEqual(scan(self.target), before)
@@ -186,7 +197,7 @@ class UnifiedUpdateTests(unittest.TestCase):
             (self.target / "new-local.py").write_bytes(b"new user code")
             return value
 
-        with patch("tool_update.prepare_online", side_effect=changed):
+        with patch("publish_switcher.updates.release.prepare_online", side_effect=changed):
             result = self.update()
         self.assertFalse(result["success"])
         self.assertIn("本地文件发生变化", result["error"])
@@ -202,7 +213,7 @@ class UnifiedUpdateTests(unittest.TestCase):
                 raise OSError("directory switch interrupted")
             return rename(source, destination)
 
-        with patch("core.os.rename", side_effect=fail_stage):
+        with patch("publish_switcher.sync.engine.os.rename", side_effect=fail_stage):
             result = self.update()
         self.assertFalse(result["success"])
         self.assertEqual(scan(self.target), before)
@@ -214,14 +225,14 @@ class UnifiedUpdateTests(unittest.TestCase):
         self.new_program()
         result = self.update()
         publish = scan(self.target)
-        with patch("tool_update.launch_update_helper", side_effect=OSError("helper failed")):
+        with patch("publish_switcher.updates.release.launch_update_helper", side_effect=OSError("helper failed")):
             with self.assertRaises(OSError):
                 combined.start_restart(self.install, result)
         self.assertEqual(result["publish"], "更新成功")
         self.assertFalse(result["success"])
         self.assertEqual(scan(self.target), publish)
         result = self.update()
-        with patch("tool_update.subprocess.run") as probe:
+        with patch("publish_switcher.updates.bootstrap.subprocess.run") as probe:
             probe.return_value.returncode = 1
             probe.return_value.stderr = "probe failed"
             with self.assertRaises(tool_update.UpdateError):
@@ -266,11 +277,11 @@ class UnifiedUpdateTests(unittest.TestCase):
         self.new_program()
         result = self.update()
         state = tool_update.update_state(self.install)
-        with patch("tool_update.launch_update_helper"):
+        with patch("publish_switcher.updates.release.launch_update_helper"):
             combined.start_restart(self.install, result)
         with patch.object(sys, "argv", ["helper", "--apply", str(self.install)]), \
-                patch("tool_update.os.chdir"), \
-                patch("tool_update.os.execv", side_effect=RuntimeError("relaunch intercepted")):
+                patch("publish_switcher.updates.bootstrap.os.chdir"), \
+                patch("publish_switcher.updates.bootstrap.os.execv", side_effect=RuntimeError("relaunch intercepted")):
             with self.assertRaisesRegex(RuntimeError, "relaunch intercepted"):
                 tool_update.helper_main()
         saved = json.loads((state / "combined-update.json").read_text())
@@ -279,11 +290,11 @@ class UnifiedUpdateTests(unittest.TestCase):
         # Prepare another upgrade against the retained fixture, then fail its probe.
         self.newer = True
         result = self.update()
-        with patch("tool_update.launch_update_helper"):
+        with patch("publish_switcher.updates.release.launch_update_helper"):
             combined.start_restart(self.install, result)
         with patch.object(sys, "argv", ["helper", "--apply", str(self.install)]), \
-                patch("tool_update.subprocess.run") as probe, patch("tool_update.os.chdir"), \
-                patch("tool_update.os.execv", side_effect=RuntimeError("relaunch intercepted")):
+                patch("publish_switcher.updates.bootstrap.subprocess.run") as probe, patch("publish_switcher.updates.bootstrap.os.chdir"), \
+                patch("publish_switcher.updates.bootstrap.os.execv", side_effect=RuntimeError("relaunch intercepted")):
             probe.return_value.returncode = 1
             probe.return_value.stderr = "simulated probe failure"
             with self.assertRaisesRegex(RuntimeError, "relaunch intercepted"):

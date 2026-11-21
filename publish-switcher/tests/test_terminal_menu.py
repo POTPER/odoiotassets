@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import test_cli
-from generate import generate
+from publish_switcher.repositories.generate import generate
 
 
 class TerminalMenuTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class TerminalMenuTests(unittest.TestCase):
     def test_format_menu_saves_selection_without_updating_publish(self):
         options = self.repository()
         saved = self.base / 'format-settings.json'
-        with patch('terminal_menu.settings_path', return_value=saved):
+        with patch('publish_switcher.cli.menu.settings_path', return_value=saved):
             result, output, errors = self.menu(['13', '1', '3', '0', '0'], options)
         self.assertEqual(result, 0, errors)
         data = json.loads(saved.read_text(encoding='utf-8'))
@@ -126,14 +126,14 @@ class TerminalMenuTests(unittest.TestCase):
         self.assertFalse((self.target / "missing.json").exists())
 
     def test_missing_directory_does_not_report_all_new_or_fetch_remote(self):
-        with patch("terminal_menu.cli.profiles", side_effect=AssertionError("must not fetch")):
+        with patch("publish_switcher.cli.menu.common.profiles", side_effect=AssertionError("must not fetch")):
             result, output, errors = self.menu(["3", "0"], ["--target", str(self.base / "nonexistent")])
         self.assertEqual(result, 0, errors)
         self.assertIn("publish 目录不存在", output)
         self.assertFalse((self.base / "nonexistent").exists())
 
     def test_missing_target_from_interrupted_swap_is_recovered(self):
-        from core import Engine, atomic_json
+        from tools.packaging.legacy.core import Engine, atomic_json
         options = self.repository()
         engine = Engine(self.target)
         stage = engine.state / "stage-interrupted"
@@ -180,7 +180,7 @@ class TerminalMenuTests(unittest.TestCase):
 
     def test_settings_save_permission_preference(self):
         saved = self.base / "settings.json"
-        with patch("terminal_menu.settings_path", return_value=saved):
+        with patch("publish_switcher.cli.menu.settings_path", return_value=saved):
             result, output, errors = self.menu(["1", "4", "2", "6", "0", "0"])
         self.assertEqual(result, 0, errors)
         self.assertTrue(json.loads(saved.read_text(encoding="utf-8"))["sync_permissions"])
@@ -207,9 +207,9 @@ class TerminalMenuTests(unittest.TestCase):
         self.assertIn("全部 6 项通过", output)
         self.assertIn("日志文件", output)
 
-    def test_ssh_menu_module_does_not_import_tkinter(self):
+    def test_ssh_menu_import_does_not_load_tkinter_or_switcher(self):
         import subprocess
-        command = [sys.executable, "-c", "import sys; import terminal_menu; assert 'tkinter' not in sys.modules"]
+        command = [sys.executable, "-c", "import sys; import publish_switcher.cli.menu; assert 'tkinter' not in sys.modules; assert 'switcher' not in sys.modules"]
         result = subprocess.run(command, cwd=str(Path(__file__).resolve().parents[1]), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -226,7 +226,7 @@ class TerminalMenuTests(unittest.TestCase):
             os.write(master, b"0\n")
             output, errors = process.communicate(timeout=10)
             self.assertEqual(process.returncode, 0, errors.decode("utf-8", errors="replace"))
-            self.assertIn("publish-switcher 终端菜单", output.decode("utf-8"))
+            self.assertIn("swicher 终端菜单", output.decode("utf-8"))
             self.assertIn("已退出", output.decode("utf-8"))
         finally:
             if process is not None and process.poll() is None:

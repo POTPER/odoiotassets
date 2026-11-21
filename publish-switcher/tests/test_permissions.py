@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Engine, Source, SyncError
+from tools.packaging.legacy.core import Engine, Source, SyncError
 
 
 @unittest.skipUnless(os.name == "posix", "Linux file permissions")
@@ -26,7 +26,7 @@ class PermissionPolicyTests(unittest.TestCase):
         (self.target / "script.py").write_bytes(self.original)
         os.chmod(self.target / "script.py", 0o777)
         self.engine, self.source = Engine(self.target), Source(local=self.remote)
-        self.guard = patch("core.assert_stopped")
+        self.guard = patch("publish_switcher.sync.engine.assert_stopped")
         self.guard.start()
         self.addCleanup(self.guard.stop)
 

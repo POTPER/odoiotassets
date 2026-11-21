@@ -9,8 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Engine, SyncError
-import permission_presets as presets
+from tools.packaging.legacy.core import Engine, SyncError
+from publish_switcher.sync import permissions as presets
 
 
 class PermissionPresetTests(unittest.TestCase):
@@ -26,8 +26,8 @@ class PermissionPresetTests(unittest.TestCase):
 
     def root_apply(self, preset, run):
         identity = (self.target.stat().st_dev, self.target.stat().st_ino)
-        with patch("permission_presets.sys.platform", "linux"), patch("permission_presets.os.geteuid", return_value=0, create=True), \
-                patch("permission_presets.assert_stopped"), patch("permission_presets.subprocess.run", run), contextlib.redirect_stdout(io.StringIO()):
+        with patch("publish_switcher.sync.permissions.sys.platform", "linux"), patch("publish_switcher.sync.permissions.os.geteuid", return_value=0, create=True), \
+                patch("publish_switcher.sync.permissions.assert_stopped"), patch("publish_switcher.sync.permissions.subprocess.run", run), contextlib.redirect_stdout(io.StringIO()):
             presets.apply_as_root(self.target, preset, identity, caller_pid=12345)
 
     def test_command_presets_are_argv_and_root_precedes_777(self):
@@ -75,7 +75,7 @@ class PermissionPresetTests(unittest.TestCase):
     def test_mounts_and_pending_transactions_block_commands(self):
         from unittest.mock import Mock
         run = Mock()
-        with patch("permission_presets.os.path.ismount", return_value=True):
+        with patch("publish_switcher.sync.permissions.os.path.ismount", return_value=True):
             with self.assertRaisesRegex(SyncError, "挂载点"):
                 self.root_apply("root", run)
         (self.engine.state / "config-transaction.json").write_bytes(b"{}")
@@ -88,15 +88,15 @@ class PermissionPresetTests(unittest.TestCase):
         nested = self.target / "mounted"
         nested.mkdir()
         run = Mock()
-        with patch("permission_presets.os.path.ismount", side_effect=lambda p: Path(p) == nested):
+        with patch("publish_switcher.sync.permissions.os.path.ismount", side_effect=lambda p: Path(p) == nested):
             with self.assertRaisesRegex(SyncError, "嵌套挂载点"):
                 self.root_apply("777", run)
         run.assert_not_called()
 
     def test_gui_launcher_uses_polkit_no_password_and_maps_cancel(self):
         completed = subprocess.CompletedProcess([], 0, "preset done", "")
-        with patch("permission_presets.sys.platform", "linux"), patch("permission_presets.os.geteuid", return_value=1000, create=True), \
-                patch("permission_presets.shutil.which", return_value="/usr/bin/pkexec"), patch("permission_presets.subprocess.run", return_value=completed) as run:
+        with patch("publish_switcher.sync.permissions.sys.platform", "linux"), patch("publish_switcher.sync.permissions.os.geteuid", return_value=1000, create=True), \
+                patch("publish_switcher.sync.permissions.shutil.which", return_value="/usr/bin/pkexec"), patch("publish_switcher.sync.permissions.subprocess.run", return_value=completed) as run:
             log = []
             result = presets.launch_preset(self.engine, "777", log.append)
             self.assertEqual(result["target"], str(self.target))
@@ -110,8 +110,8 @@ class PermissionPresetTests(unittest.TestCase):
                 presets.launch_preset(self.engine, "777")
 
     def test_missing_pkexec_reports_installation_instruction(self):
-        with patch("permission_presets.sys.platform", "linux"), patch("permission_presets.os.geteuid", return_value=1000, create=True), \
-                patch("permission_presets.shutil.which", return_value=None), patch("permission_presets.subprocess.run") as run:
+        with patch("publish_switcher.sync.permissions.sys.platform", "linux"), patch("publish_switcher.sync.permissions.os.geteuid", return_value=1000, create=True), \
+                patch("publish_switcher.sync.permissions.shutil.which", return_value=None), patch("publish_switcher.sync.permissions.subprocess.run") as run:
             with self.assertRaisesRegex(SyncError, "install.sh"):
                 presets.launch_preset(self.engine, "root")
             run.assert_not_called()

@@ -7,9 +7,9 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from core import Engine, Source, SyncError, load_profile, read_json, scan
-from file_formats import DEFAULT_EXTENSIONS, NO_EXTENSION, inventory, normalize_extensions
-from generate import generate
+from tools.packaging.legacy.core import Engine, Source, SyncError, load_profile, read_json, scan
+from publish_switcher.sync.formats import DEFAULT_EXTENSIONS, NO_EXTENSION, inventory, normalize_extensions
+from publish_switcher.repositories.generate import generate
 
 
 class FileFormatTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class FileFormatTests(unittest.TestCase):
         self.repo = self.base / 'repo'
         self.original.mkdir()
         self.target.mkdir()
-        guard = patch('core.assert_stopped')
+        guard = patch('publish_switcher.sync.engine.assert_stopped')
         guard.start()
         self.addCleanup(guard.stop)
 

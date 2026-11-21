@@ -11,11 +11,22 @@ from unittest.mock import patch
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import tool_update as updater
-from core import Source
+from publish_switcher.updates import bootstrap as updater
+from tools.packaging.legacy.core import Source
+from tools.build_update import distribution_files
 
 
 class ProgramUpdateTests(unittest.TestCase):
+    def test_source_layout_maps_to_legacy_paths_in_distribution(self):
+        root = Path(__file__).resolve().parents[1]
+        entries = dict(distribution_files(root))
+        self.assertEqual(entries["install.sh"], root / "install/install.sh")
+        self.assertEqual(entries["tool_update.py"], root / "publish_switcher/updates/bootstrap.py")
+        self.assertEqual(entries["version.py"], root / "publish_switcher/version.py")
+        self.assertEqual(entries["ui_assets.py"], root / "tools/packaging/legacy/ui_assets.py")
+        self.assertTrue(all(entries[name].is_file() for name in updater.REQUIRED_FILES))
+        self.assertFalse(any(name.startswith(("tools/", "tests/", "release/", "install/")) for name in entries))
+
     def setUp(self):
         root = Path(os.environ.get("PUBLISH_SWITCHER_TEST_TMP", str(Path(__file__).parent / ".tmp")))
         root.mkdir(parents=True, exist_ok=True)
@@ -53,6 +64,15 @@ class ProgramUpdateTests(unittest.TestCase):
         self.assertEqual(updater.package_version(self.install / "version.py"), self.version)
         self.assertFalse((state / "pending.json").exists())
 
+    def test_selected_github_downloads_package_from_github_even_if_metadata_names_gitee(self):
+        release = self.release()
+        release["url"] = "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/publish-switcher.zip"
+        release["mirror_repositories"] = [{"url": "https://github.com/POTPER/odoiotassets", "branch": "main"}]
+        with patch("publish_switcher.updates.release.remote_file", return_value=(Source(local=self.base), self.package.name)) as locate:
+            updater.prepare_online(self.install, release, "2026.11.20.1", None, lambda size: None)
+        locate.assert_called_once_with("https://raw.githubusercontent.com/POTPER/odoiotassets/main/publish-switcher/release/publish-switcher.zip")
+        updater.recover_update(self.install)
+
     def test_bad_checksum_and_version_mismatch_leave_original_untouched(self):
         release = self.release()
         release["sha256"] = "0" * 64
@@ -67,11 +87,11 @@ class ProgramUpdateTests(unittest.TestCase):
 
     def test_space_or_download_failure_does_not_change_installed_tool(self):
         release = self.release()
-        with patch("tool_update.shutil.disk_usage") as space:
+        with patch("publish_switcher.updates.bootstrap.shutil.disk_usage") as space:
             space.return_value.free = 0
             with self.assertRaisesRegex(updater.UpdateError, "磁盘空间不足"):
                 self.prepare(release)
-        with patch("tool_update.remote_file", return_value=(Source(local=self.base), "publish-switcher.zip")), \
+        with patch("publish_switcher.updates.release.remote_file", return_value=(Source(local=self.base), "publish-switcher.zip")), \
                 patch.object(Source, "download", side_effect=OSError("network interruption")):
             with self.assertRaises(OSError):
                 updater.prepare_online(self.install, release, "2026.11.20.1", None, lambda size: None)
@@ -99,7 +119,7 @@ class ProgramUpdateTests(unittest.TestCase):
             if Path(source).name == record["stage"] and Path(destination) == self.install:
                 raise OSError("simulated rename error")
             return original(source, destination)
-        with patch("tool_update.os.replace", side_effect=fail_stage):
+        with patch("publish_switcher.updates.bootstrap.os.replace", side_effect=fail_stage):
             with self.assertRaisesRegex(OSError, "simulated"):
                 updater.commit_update(self.install)
         self.assertEqual((self.install / "old.py").read_bytes(), b"original")
@@ -107,7 +127,7 @@ class ProgramUpdateTests(unittest.TestCase):
 
     def test_failed_new_version_probe_restores_old_code(self):
         release = self.release()
-        with patch("tool_update.subprocess.run") as probe:
+        with patch("publish_switcher.updates.bootstrap.subprocess.run") as probe:
             probe.return_value.returncode = 1
             probe.return_value.stderr = "import failure"
             self.prepare(release)
@@ -140,7 +160,7 @@ class ProgramUpdateTests(unittest.TestCase):
     def test_remote_check_persists_mandatory_version_and_blocks_old_offline_package(self):
         release = self.release()
         (self.base / "update.json").write_text(json.dumps(release), encoding="utf-8")
-        with patch("tool_update.remote_file", return_value=(Source(local=self.base), "update.json")):
+        with patch("publish_switcher.updates.release.remote_file", return_value=(Source(local=self.base), "update.json")):
             actual, newer = updater.check_release("https://example.org/update.json", self.install, "2026.11.20.1")
         self.assertTrue(newer)
         self.assertEqual(actual["version"], self.version)

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from compat import is_relative_to, remove_suffix
+from publish_switcher.common.compat import is_relative_to, remove_suffix
 
 
 class CompatibilityTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class CompatibilityTests(unittest.TestCase):
 
     def test_python38_syntax_and_no_post38_path_or_string_methods(self):
         root = Path(__file__).resolve().parents[1]
-        for path in root.glob("*.py"):
+        for path in (*root.glob("*.py"), *(root / "publish_switcher").rglob("*.py")):
             text = path.read_text(encoding="utf-8")
             tree = ast.parse(text, filename=str(path), feature_version=8)
             for node in ast.walk(tree):
