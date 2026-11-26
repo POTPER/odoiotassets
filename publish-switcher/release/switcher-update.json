@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "product": "publish-switcher",
-  "version": "2026.11.21.6",
+  "version": "2026.11.26.1",
   "url": "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/publish-switcher.zip",
   "package_file": "publish-switcher.zip",
-  "size": 31944498,
-  "sha256": "477863e2c8d1ca36c2e1cb503de6afd9f3684a8b31f24cd6c6b0c9f2131b9957",
-  "notes": "简化启动更新提示。未安装 publish 时也可继续更新程序。"
+  "size": 31965012,
+  "sha256": "9b71e8966ce3ac2f1b995c14ae270ba833c50527054be282b06bff906f9c6b9d",
+  "notes": "添加 swicher 软件图标，支持窗口、任务栏和桌面快捷方式。"
 }

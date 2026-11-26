@@ -29,7 +29,7 @@ class DesktopInstallTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
         return result
 
-    def test_relocates_shortcut_without_requiring_icons(self):
+    def test_relocates_shortcut_and_software_icon(self):
         source = Path(__file__).resolve().parents[1]
         temp_root = Path(os.environ.get("PUBLISH_SWITCHER_TEST_TMP", str(Path(__file__).parent / ".tmp")))
         temp_root.mkdir(parents=True, exist_ok=True)
@@ -45,13 +45,15 @@ class DesktopInstallTests(unittest.TestCase):
             unrelated.write_text('unrelated app', encoding='utf-8')
             tool = base / "中文 工具"
             tool.mkdir()
+            shutil.copytree(source / "icons", tool / "icons")
             for directory in (tool, base / "新版 工具"):
                 if directory != tool:
                     shutil.copytree(tool, directory)
                 self.run_installer(source, directory, data, home)
                 desktop = (data / "applications/publish-switcher.desktop").read_text(encoding="utf-8")
                 self.assertIn("\nName=swicher\n", desktop)
-                self.assertNotIn("\nIcon=", desktop)
+                icon = str(directory / "icons/swicher-256.png").replace("\\", "\\\\")
+                self.assertIn("\nIcon=" + icon + "\n", desktop)
                 self.assertIn("StartupWMClass=PublishSwitcher\n", desktop)
                 self.assertIn(str(directory / "switcher.py").replace("\\", "\\\\"), desktop)
                 self.assertIn("Path=" + str(directory).replace("\\", "\\\\") + "\n", desktop)

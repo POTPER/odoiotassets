@@ -43,7 +43,8 @@ LAYOUT_FILES = (
     "publish_switcher/updates/bootstrap.py",
 )
 STARTUP_FILES = ("publish_switcher/gui/startup.py", "publish_switcher/updates/startup.py")
-REQUIRED_FILES = BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES
+ICON_FILES = tuple("icons/swicher-{}.png".format(size) for size in (16, 24, 32, 48, 64, 128, 256))
+REQUIRED_FILES = BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES + ICON_FILES
 
 
 class PackageError(ValueError):
@@ -94,8 +95,10 @@ def package_version(path):
 
 def required_files(version):
     number = version_number(version)
-    if number >= (2026, 11, 21, 5):
+    if number >= (2026, 11, 26, 1):
         return REQUIRED_FILES
+    if number >= (2026, 11, 21, 5):
+        return BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES
     if number >= (2026, 11, 21, 1):
         return BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES
     if number >= (2026, 11, 20, 11):

@@ -63,6 +63,8 @@ class Application:
         self.startup_window = None
         if auto_update:
             root.withdraw()
+        from publish_switcher.gui.widgets.icons import set_window_icon
+        set_window_icon(root)
         self.config_view = ConfigurationPage(self)
         self.program_view = ProgramPage(self)
         self.files_view = FilesPage(self)

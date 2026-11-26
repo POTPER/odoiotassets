@@ -30,6 +30,8 @@ python3 install_online.py --directory "$HOME/publish-switcher-new"
 
 ## 用户界面和程序更新
 
+软件图标用于窗口、任务栏、应用菜单与桌面快捷方式。已有快捷方式可在工具目录重新运行 `bash install.sh` 刷新。图标位于 `icons/`，开发时可用 Pillow 执行 `python tools/build_icons.py` 重新绘制。
+
 ### 启动自动更新
 
 普通启动直接开始更新。小窗显示「连接成功」「更新成功」等简短状态，下载时显示进度和速度。工具按仓库顺序检查更新，有 `publish` 目录时按已选格式严格同步。设备尚未安装 `publish` 时可先更新程序，完成后进入「程序更新」页。程序升级由外部助手安装并重启。

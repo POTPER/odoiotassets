@@ -24,6 +24,7 @@ DISTRIBUTION_GROUPS = {
     "docs": {".md"},
     "debs": {".deb", ".tsv"},
     "repository-template": {".json", ".md"},
+    "icons": {".png"},
 }
 
 
@@ -98,7 +99,7 @@ def build(root, output, url):
         release = validate_release({"schema_version": 1, "product": "publish-switcher", "version": VERSION,
                                     "url": https_url(url), "package_file": archive.name, "size": temporary.stat().st_size,
                                     "sha256": hashlib.sha256(temporary.read_bytes()).hexdigest(),
-                                    "notes": "简化启动更新提示。未安装 publish 时也可继续更新程序。"})
+                                    "notes": "添加 swicher 软件图标，支持窗口、任务栏和桌面快捷方式。"})
         with tempfile.NamedTemporaryFile(dir=output, prefix="manifest-", suffix=".tmp", delete=False,
                                          mode="w", encoding="utf-8") as stream:
             temporary_manifest = Path(stream.name)

@@ -154,6 +154,10 @@ content = ('[Desktop Entry]\nVersion=1.0\nType=Application\nName=swicher\n'
            'Comment=配置与资源管理\nExec=' + ' '.join(quote(arg) for arg in launch) +
            '\nPath=' + entry_value(working_directory) +
            '\nStartupWMClass=PublishSwitcher\nTerminal=false\nCategories=Utility;\n')
+icon = directory / 'icons/swicher-256.png'
+if icon.is_file():
+    content += 'Icon=' + entry_value(icon) + '\n'
+
 desktop.write_text(content, encoding='utf-8')
 desktop.chmod(0o755)
 print('已安装应用菜单快捷方式：', desktop)
