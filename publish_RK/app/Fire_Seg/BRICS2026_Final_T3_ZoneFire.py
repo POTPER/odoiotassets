@@ -125,8 +125,8 @@ PERMIT_DURATION = 60
 CAMERA_INDEX = 41  # 摄像头设备编号
 NPU_CORE = 'auto'  # auto自动选择；也可选0、1、2、all
 FRAME_WIDTH, FRAME_HEIGHT = 1920, 1080  # 请求采集宽度、高度，像素；不支持时按原流程回退
-CONFIDENCE_HIGH = 0.5  # 检测框显示、报警判断和成果记录共用的高置信度阈值
-CONFIDENCE_LOW = 0.25  # 已有火焰目标的内部匹配阈值，低分结果不显示
+CONFIDENCE_HIGH = 0.35  # 检测框显示、报警判断和成果记录共用的高置信度阈值
+CONFIDENCE_LOW = 0.1  # 已有火焰目标的内部匹配阈值，低分结果不显示
 
 # 区域范围与中文显示
 # 画面固定按宽度三等分；左侧钢筋加工区，中间临时作业区，右侧材料堆放区。
