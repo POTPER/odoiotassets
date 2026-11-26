@@ -316,6 +316,32 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(update.call_count, 2)
             connect.assert_not_called()
 
+    def test_startup_waits_for_window_mapping_before_network_work(self):
+        window = tk.Toplevel(self.root)
+        self.addCleanup(lambda: window.destroy() if window.winfo_exists() else None)
+        with patch.object(app, "CONFIG", Path(__file__).parent / "nonexistent-settings.json"), \
+                patch("publish_switcher.updates.startup.run_startup_update",
+                      return_value=dict(success=False, cancelled=True)) as update:
+            with patch.object(tk.Toplevel, "deiconify"):
+                ui = app.Application(window, engineer=False, updates=True, auto_update=True)
+                self.root.update()
+                update.assert_not_called()
+                self.assertFalse(ui.busy)
+            startup = ui.startup_window
+            self.assertEqual(startup.window.winfo_class(), "PublishSwitcher")
+            self.assertEqual(str(startup.window.transient()), "")
+            if startup.window.tk.call("tk", "windowingsystem") == "x11":
+                self.assertEqual(str(startup.window.wm_group()), str(startup.window))
+                self.assertIn("normal", startup.window.wm_attributes("-type"))
+            startup.window.deiconify()
+            deadline = time.monotonic() + 3
+            while not update.called and time.monotonic() < deadline:
+                self.root.update()
+                time.sleep(.01)
+            self.assertTrue(startup.window.winfo_viewable())
+            self.pump_ui(ui)
+            update.assert_called_once()
+
     def test_update_channels_follow_repository_order_and_reset_to_first_when_changed(self):
         ui = self.channel_ui()
         self.assertEqual(ui.update_channel.get(), 0)

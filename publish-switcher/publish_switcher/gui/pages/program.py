@@ -300,10 +300,19 @@ class ProgramPage:
         release = dict(self.program_release)
         self.program_status.set("正在下载、校验并准备新版程序…")
         count = [0]
+        total = [release["size"]]
+
+        def plan(size):
+            total[0] = size
+
+        def reset():
+            count[0] = 0
+
         def progress(size):
             count[0] += size
-            self.application.events.put(("log", "程序下载 {:.1f} / {:.1f} MiB".format(count[0] / 2**20, release["size"] / 2**20)))
-        self.application.run(lambda: tool_update.prepare_online(self.application.install_directory, release, VERSION, self.application.cancel, progress),
+            self.application.events.put(("log", "程序下载 {:.1f} / {:.1f} MiB".format(count[0] / 2**20, total[0] / 2**20)))
+        self.application.run(lambda: tool_update.prepare_online(self.application.install_directory, release, VERSION, self.application.cancel, progress,
+                                                              on_attempt=reset, on_plan=plan),
                  self.program_prepared, system_update=True)
 
 

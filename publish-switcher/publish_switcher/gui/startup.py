@@ -6,6 +6,7 @@ from tkinter import ttk
 
 from publish_switcher.updates import startup, unified
 from publish_switcher.version import VERSION
+from publish_switcher.gui.widgets.icons import WM_CLASS
 
 
 class StartupWindow:
@@ -17,7 +18,13 @@ class StartupWindow:
         self.app = app
         self.running = self.cancellable = False
         self.sample = None
-        self.window = tk.Toplevel(app.root)
+        self.window = tk.Toplevel(app.root, class_=WM_CLASS)
+        self.window.withdraw()
+        self.window.transient("")
+        if self.window.tk.call("tk", "windowingsystem") == "x11":
+            # The hidden application root must not be the splash's group leader.
+            self.window.wm_group(self.window)
+            self.window.wm_attributes("-type", "normal")
         self.window.title("swicher")
         self.window.configure(background=self.BACKGROUND)
         self.window.resizable(False, False)
@@ -40,6 +47,16 @@ class StartupWindow:
         self.actions = tk.Frame(box, background=self.BACKGROUND)
         self.actions.pack(side="bottom", fill="x")
         self.cancel_button = ttk.Button(self.actions, text="取消", command=self.close)
+
+    def show(self, begin):
+        def mapped(event):
+            if event.widget is self.window:
+                self.window.unbind("<Map>", binding)
+                self.app.program_view.program_check_id = self.window.after_idle(begin)
+
+        binding = self.window.bind("<Map>", mapped, add="+")
+        self.window.deiconify()
+        self.window.lift()
 
     def label(self, parent, text, size=10, color=FOREGROUND):
         return tk.Label(parent, text=text, font=(self.app.font_family, size),

@@ -1,10 +1,1345 @@
 {
   "schema_version": 1,
   "product": "publish-switcher",
-  "version": "2026.11.26.1",
+  "version": "2026.11.26.3",
   "url": "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/publish-switcher.zip",
   "package_file": "publish-switcher.zip",
-  "size": 31965012,
-  "sha256": "9b71e8966ce3ac2f1b995c14ae270ba833c50527054be282b06bff906f9c6b9d",
-  "notes": "添加 swicher 软件图标，支持窗口、任务栏和桌面快捷方式。"
+  "size": 31969207,
+  "sha256": "e9c0c95180507dcbc77b59c6fdc71a17a1a95b39b83bf3e82f37e5958d4851b6",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 65979,
+      "sha256": "221359208802a3900e05bae60ced7bb4a0267631493d8c0e7a3692702ed2ba40",
+      "mode": 420
+    },
+    {
+      "path": "app.py",
+      "size": 352,
+      "sha256": "ee8b4fc8fd1a9fa77fbcdbffb4aedf9a05503787210300b8562d541884dd329a",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/README.md",
+      "size": 1034,
+      "sha256": "41c461a5e03ef8da49799e1de8ab835cfecd30802668e3a45431aad3bb057299",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/local/changed.py",
+      "size": 15,
+      "sha256": "bed1f8721d188e0dbfa583f6036437389e20c4b3ed614772fbda7469f49b796a",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/local/empty.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/local/newlines.py",
+      "size": 25,
+      "sha256": "f82271fdb270bba0b90c6e2ef0b3df8516db6e965d0d2bb1f3db1132114d7e37",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/local/permissions.py",
+      "size": 28,
+      "sha256": "9b466cb60eea860522ea04f6735cef420da5efd2534d2a21d633ad90b2955092",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/local/same.py",
+      "size": 14,
+      "sha256": "b82ea8b03cd4a38632b1a5ee2ec3e58d71879214d4e88bf063bd3d1fc7b020d8",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/remote/changed.py",
+      "size": 16,
+      "sha256": "d1f472fa276bdaa8850ed6200b11943a05d13ddabd6b7486b9636fae5626483c",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/remote/empty.py",
+      "size": 27,
+      "sha256": "e1a6760777106d3db14a83060499eed2c2f1a7d197e5e26d24fe16034059fed9",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/remote/missing.json",
+      "size": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/remote/newlines.py",
+      "size": 24,
+      "sha256": "6695f646f4f731d136b059e112356ddd271b4c93889b99b3a299d0452b947d6d",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/remote/permissions.py",
+      "size": 28,
+      "sha256": "9b466cb60eea860522ea04f6735cef420da5efd2534d2a21d633ad90b2955092",
+      "mode": 420
+    },
+    {
+      "path": "comparison-samples/remote/same.py",
+      "size": 14,
+      "sha256": "b82ea8b03cd4a38632b1a5ee2ec3e58d71879214d4e88bf063bd3d1fc7b020d8",
+      "mode": 420
+    },
+    {
+      "path": "core.py",
+      "size": 1145,
+      "sha256": "e784b10817597f4c3e1a96bfc5857bd317d3f6d4c0484cc7b085eb1a703bdfce",
+      "mode": 420
+    },
+    {
+      "path": "debs/PACKAGES.tsv",
+      "size": 3783,
+      "sha256": "7f129928774e1cba027d813b512513c8549332d2effca0286563790a474dc6ac",
+      "mode": 420
+    },
+    {
+      "path": "debs/SHA256SUMS",
+      "size": 11887,
+      "sha256": "db335308acedf14f5d97a5888c1e21ec23be7e46571848f61de93fb647316367",
+      "mode": 420
+    },
+    {
+      "path": "debs/adduser_3.118ubuntu2_all.deb",
+      "size": 162792,
+      "sha256": "5f7ea9d1d52a2a9c349468f89d160230e21c8542faed1b1a97c23bce873e17b4",
+      "mode": 420
+    },
+    {
+      "path": "debs/blt_2.5.3+dfsg-4_arm64.deb",
+      "size": 4944,
+      "sha256": "ae26f2d573a24a161aabc5ffe1717fcf1aeea6dfcff0365cf7782bb3ecdbe149",
+      "mode": 420
+    },
+    {
+      "path": "debs/coreutils_8.30-3ubuntu2_arm64.deb",
+      "size": 1174072,
+      "sha256": "c80c4af2918f4131292b6d865d35bff225142f5e192f161117670e802035a047",
+      "mode": 420
+    },
+    {
+      "path": "debs/dbus_1.12.16-2ubuntu2.3_arm64.deb",
+      "size": 141600,
+      "sha256": "400b2d1c41ae422679215239f877d2e36589ca14bcd4c109e5bd0b9dab372d7b",
+      "mode": 420
+    },
+    {
+      "path": "debs/debconf_1.5.73_all.deb",
+      "size": 121524,
+      "sha256": "7d639ffea1be8e8f5859ca94a0a09b1e4664d10af421c748b4163b08db515990",
+      "mode": 420
+    },
+    {
+      "path": "debs/dpkg_1.19.7ubuntu3.2_arm64.deb",
+      "size": 1112356,
+      "sha256": "931a2ce3e88c7df5ece23c95f37176e3c4f7d82b2384819d8947121bd4917553",
+      "mode": 420
+    },
+    {
+      "path": "debs/fontconfig-config_2.13.1-2ubuntu3_all.deb",
+      "size": 28780,
+      "sha256": "80b090925c52aff3f4681b361c9823b041c42c57cca58b5baf2541bafc25fed9",
+      "mode": 420
+    },
+    {
+      "path": "debs/fonts-dejavu-core_2.37-1_all.deb",
+      "size": 1040712,
+      "sha256": "f2b3f7f51e23e0493e8e642c82003fe75cf42bc95fda545cc96b725a69adb515",
+      "mode": 420
+    },
+    {
+      "path": "debs/gcc-10-base_10.5.0-1ubuntu1~20.04_arm64.deb",
+      "size": 20780,
+      "sha256": "b099a2d475b16fe466a435fff8c1bac7385645b77fb632e21f782f0c6787e990",
+      "mode": 420
+    },
+    {
+      "path": "debs/libacl1_2.2.53-6_arm64.deb",
+      "size": 17784,
+      "sha256": "218a0cc187a63c95ae3efb886e200f5dab1a9a3600e0e3781953c08acc61eff2",
+      "mode": 420
+    },
+    {
+      "path": "debs/libapparmor1_2.13.3-7ubuntu5.4_arm64.deb",
+      "size": 34904,
+      "sha256": "cb65c0208e3c6f94f45beeeb2135bd68d789098b33a627ff634d4004ba7ac45c",
+      "mode": 420
+    },
+    {
+      "path": "debs/libargon2-1_0~20171227-0.2_arm64.deb",
+      "size": 18424,
+      "sha256": "11a3a3631553bc76e5256dded11dd1531544916262ca46fd017174583d2a8a6b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libattr1_1%3a2.4.48-5_arm64.deb",
+      "size": 12488,
+      "sha256": "5ef640b8b2c4824eaf564a07f1c39f68ec31334cda474507f427aeb55ea8d183",
+      "mode": 420
+    },
+    {
+      "path": "debs/libaudit-common_1%3a2.8.5-2ubuntu6_all.deb",
+      "size": 3936,
+      "sha256": "9fa4a291df5682f5fee12aacdddd9ed09445c352c80d8a1af36056866e4b4906",
+      "mode": 420
+    },
+    {
+      "path": "debs/libaudit1_1%3a2.8.5-2ubuntu6_arm64.deb",
+      "size": 38248,
+      "sha256": "c9bf5af721e15f208e27bd04e5b01826f136a7f0dcba5fe4eb06b1ea09abddff",
+      "mode": 420
+    },
+    {
+      "path": "debs/libblkid1_2.34-0.1ubuntu9.6_arm64.deb",
+      "size": 128748,
+      "sha256": "6501deae2c21100fa083d7673090eca29462f9c11dae4ebe940e6dd8faf79a36",
+      "mode": 420
+    },
+    {
+      "path": "debs/libbsd0_0.10.0-1_arm64.deb",
+      "size": 43736,
+      "sha256": "0486962198502bfd808a4645d453d3d9ee0916c29c4217355b61a3d206d77f4a",
+      "mode": 420
+    },
+    {
+      "path": "debs/libbz2-1.0_1.0.8-2_arm64.deb",
+      "size": 32944,
+      "sha256": "6223fe0025beac129e9168be5a5ffc3655c23defd12de86b2f5dc52c3fd8d93b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libc6_2.31-0ubuntu9.18_arm64.deb",
+      "size": 2277572,
+      "sha256": "4ff60d84ad78f3aa598297dc6966549fa6489f57599f197562ad91547f388da0",
+      "mode": 420
+    },
+    {
+      "path": "debs/libcap-ng0_0.7.9-2.1build1_arm64.deb",
+      "size": 10488,
+      "sha256": "5a362a556902427435b8e2c28d319263fa9a9c14848a7c7996da843d1ce45ec6",
+      "mode": 420
+    },
+    {
+      "path": "debs/libcap2_1%3a2.32-1ubuntu0.2_arm64.deb",
+      "size": 15392,
+      "sha256": "c2270cc1a310f330209f663e219137b66bec75dc95cc2989acf4c04addb607c7",
+      "mode": 420
+    },
+    {
+      "path": "debs/libcrypt1_1%3a4.4.10-10ubuntu4_arm64.deb",
+      "size": 82520,
+      "sha256": "89907b6c1b613c430a53ef10909934b9ce5854a396cd173360495f6f8e5e7ea4",
+      "mode": 420
+    },
+    {
+      "path": "debs/libcryptsetup12_2%3a2.2.2-3ubuntu2.5_arm64.deb",
+      "size": 152208,
+      "sha256": "42983e06ef1fdae98bc9d0a3de23ce93b9ab9524de8ac585c38f78204058da73",
+      "mode": 420
+    },
+    {
+      "path": "debs/libdb5.3_5.3.28+dfsg1-0.6ubuntu2_arm64.deb",
+      "size": 619612,
+      "sha256": "c7559b42a507da72f2dcca86d70acca1349407416ea4c485b6fb36335879642a",
+      "mode": 420
+    },
+    {
+      "path": "debs/libdbus-1-3_1.12.16-2ubuntu2.3_arm64.deb",
+      "size": 169260,
+      "sha256": "db181df6a0e2533bcc236e6dbcc2cb4416ecccffe617841203535d42a9f7681b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libdevmapper1.02.1_2%3a1.02.167-1ubuntu1_arm64.deb",
+      "size": 110124,
+      "sha256": "a51383ecc37bac1b742adb3845a491492329d74a5f1aa1cb5a81490274fa9471",
+      "mode": 420
+    },
+    {
+      "path": "debs/libexpat1_2.2.9-1ubuntu0.8_arm64.deb",
+      "size": 63000,
+      "sha256": "a51e25c803283d266f63de4b631fe7ff0db2a4fa28d3743ad2d6d7dde1409a38",
+      "mode": 420
+    },
+    {
+      "path": "debs/libffi7_3.3-4_arm64.deb",
+      "size": 17136,
+      "sha256": "a3e7abc48b5b4614fd5f6d1d95019d52be092e40e9b8a05f670905c6abf6eac4",
+      "mode": 420
+    },
+    {
+      "path": "debs/libfontconfig1_2.13.1-2ubuntu3_arm64.deb",
+      "size": 110740,
+      "sha256": "7abc3c68569ebd52e7e27ba1cd1e97004bf5a1641212acd821220a020b713c2f",
+      "mode": 420
+    },
+    {
+      "path": "debs/libfreetype6_2.10.1-2ubuntu0.4_arm64.deb",
+      "size": 315716,
+      "sha256": "14e03a33e5ee8ea909d58804b895cb5f3aa9e774e008f0a635593e7f1826a329",
+      "mode": 420
+    },
+    {
+      "path": "debs/libgcc-s1_10.5.0-1ubuntu1~20.04_arm64.deb",
+      "size": 34596,
+      "sha256": "9638c0a04a540175e34314f51bc3c5709859c6f7690cb16f2deccbf8f5f1ecc6",
+      "mode": 420
+    },
+    {
+      "path": "debs/libgcrypt20_1.8.5-5ubuntu1.1_arm64.deb",
+      "size": 349392,
+      "sha256": "30960de1028522bb10bf3ae16d32967cb2ab9a479a26ba2c1d63d828300696d8",
+      "mode": 420
+    },
+    {
+      "path": "debs/libglib2.0-0_2.64.6-1~ubuntu20.04.9_arm64.deb",
+      "size": 1201064,
+      "sha256": "5165775294bf29ceea14b119c2b561a4550ec7d011b65c31a78e3107f5c810f0",
+      "mode": 420
+    },
+    {
+      "path": "debs/libgmp10_2%3a6.2.0+dfsg-4ubuntu0.1_arm64.deb",
+      "size": 217624,
+      "sha256": "0ad2322370e552a0c8541c71e86cc0f63573b8cc2521d07b873fb4fa5efbc313",
+      "mode": 420
+    },
+    {
+      "path": "debs/libgnutls30_3.6.13-2ubuntu1.12_arm64.deb",
+      "size": 753496,
+      "sha256": "bdfda0cc83d63003b04494a3cef41fab97c8c3a3f488eca4d0c6b9fb9f6d5e76",
+      "mode": 420
+    },
+    {
+      "path": "debs/libgpg-error0_1.37-1_arm64.deb",
+      "size": 55060,
+      "sha256": "3b1364e9125ec484cfc3dd4441b836e111cf99e86274ca5e24a82d6c8343f15f",
+      "mode": 420
+    },
+    {
+      "path": "debs/libhogweed5_3.5.1+really3.5.1-2ubuntu0.2_arm64.deb",
+      "size": 134516,
+      "sha256": "bb96808b5e2e28465720eab769461bed98bbf054efce3c176171d340fa66b5bc",
+      "mode": 420
+    },
+    {
+      "path": "debs/libidn2-0_2.2.0-2_arm64.deb",
+      "size": 49376,
+      "sha256": "87b95a889659edc2cae07679a930880b625449e28608cb22a8b6b6e6149c22cd",
+      "mode": 420
+    },
+    {
+      "path": "debs/libip4tc2_1.8.4-3ubuntu2.1_arm64.deb",
+      "size": 18664,
+      "sha256": "6a448d1618dc8f4cfb27185c03a4e8746047d181617a92fa0e94f4abcf4f3066",
+      "mode": 420
+    },
+    {
+      "path": "debs/libjson-c4_0.13.1+dfsg-7ubuntu0.3_arm64.deb",
+      "size": 28300,
+      "sha256": "2fa560b523e5a53ed7cdd4d0dab6bd36ba3a3dd2250a23971425170cc4f72790",
+      "mode": 420
+    },
+    {
+      "path": "debs/libkmod2_27-1ubuntu2.1_arm64.deb",
+      "size": 41880,
+      "sha256": "eccd90224e17be7b077235e4ef361548e0c51273723cc50712616421851c14ec",
+      "mode": 420
+    },
+    {
+      "path": "debs/liblz4-1_1.9.2-2ubuntu0.20.04.1_arm64.deb",
+      "size": 52968,
+      "sha256": "d41c5b06e7a79afae062523222029a0cc126d3d9d0eecd5f363bfec06b4d7eeb",
+      "mode": 420
+    },
+    {
+      "path": "debs/liblzma5_5.2.4-1ubuntu1.1_arm64.deb",
+      "size": 88072,
+      "sha256": "fa5c6beb4390bd9dcca70abbd507573f3aaf637581eb45131ccc5dd147a484cd",
+      "mode": 420
+    },
+    {
+      "path": "debs/libmount1_2.34-0.1ubuntu9.6_arm64.deb",
+      "size": 139600,
+      "sha256": "7f7548911174a09fe5311a52b02ab61c43cd66aea829b81e69af47047f0131fd",
+      "mode": 420
+    },
+    {
+      "path": "debs/libmpdec2_2.4.2-3_arm64.deb",
+      "size": 79600,
+      "sha256": "5a5636b7342921e885a2327826f9331ab65e16f102567b397465ea04491bae4d",
+      "mode": 420
+    },
+    {
+      "path": "debs/libncursesw6_6.2-0ubuntu2.1_arm64.deb",
+      "size": 120268,
+      "sha256": "0fe748c325a1727cda8f6f8bf931b1fb7f96e8205ce4ab767f24eec5593fa9fd",
+      "mode": 420
+    },
+    {
+      "path": "debs/libnettle7_3.5.1+really3.5.1-2ubuntu0.2_arm64.deb",
+      "size": 124352,
+      "sha256": "6d18525e248e84b8a4ee39a226fd1195ca9b9d0d5a1c7909ae4f997d46378848",
+      "mode": 420
+    },
+    {
+      "path": "debs/libp11-kit0_0.23.20-1ubuntu0.1_arm64.deb",
+      "size": 176892,
+      "sha256": "13f594407a38c9d6f454bc6009aeeb4862c316be03de8ec4b9234c15c8bee5bb",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpam-modules-bin_1.3.1-5ubuntu4.7_arm64.deb",
+      "size": 39712,
+      "sha256": "b8766a4449618f3ae78c4905f0d54beb1ec3d1813615ac8cefc9a862868e6fd9",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpam-modules_1.3.1-5ubuntu4.7_arm64.deb",
+      "size": 251840,
+      "sha256": "7700441b121e799ef658046f613bc1c35e1e8287cc4e29a9fe107f4eb9cd0dfe",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpam-runtime_1.3.1-5ubuntu4.7_all.deb",
+      "size": 37288,
+      "sha256": "9e28174f564168fc1befe0ac07638a648ee472b4ecc72e3f8e7722c9802b8d29",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpam-systemd_245.4-4ubuntu3.24_arm64.deb",
+      "size": 175392,
+      "sha256": "8445ab9c46cddc4bda76e147f854087871f12a76bae9232f57f164c167926bfe",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpam0g_1.3.1-5ubuntu4.7_arm64.deb",
+      "size": 53828,
+      "sha256": "ff9cfe1aeb2b300821d834d48e8388aa7b8d624b0a6b55de7eb1afe1f2ece1ec",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpcre2-8-0_10.34-7ubuntu0.1_arm64.deb",
+      "size": 170340,
+      "sha256": "098c3f31085cc0cb968e739ae3e4f5fb9f27298765d222e7d517c0ae87101391",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpcre3_2%3a8.39-12ubuntu0.1_arm64.deb",
+      "size": 209060,
+      "sha256": "caa77e05707539866a8651b09227f9be310483e239afcd360c7e3db2498c858d",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpng16-16_1.6.37-2_arm64.deb",
+      "size": 173524,
+      "sha256": "95185d067fcdee1fcc51cb83490720fd2dcee450c55b9cfabcc940ed160879b5",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpolkit-agent-1-0_0.105-26ubuntu1.3_arm64.deb",
+      "size": 14224,
+      "sha256": "eefce7178beba8708869be3c27b4933f413b84030464b13fd72e740e1d0966f6",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpolkit-gobject-1-0_0.105-26ubuntu1.3_arm64.deb",
+      "size": 37396,
+      "sha256": "7f97b36f655873d909ba4e38307d34e268a77ad7ad60191a6312c0eef8dba48a",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpython3-stdlib_3.8.2-0ubuntu2_arm64.deb",
+      "size": 7068,
+      "sha256": "c5493c2b8f8fda53fcf6d5adcacefb7fc93ab09f748712cc2113ba3146ae4602",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpython3.8-minimal_3.8.10-0ubuntu1~20.04.18_arm64.deb",
+      "size": 717424,
+      "sha256": "29766005904384a357eb95d6e721ffd2824f1daca0d8b6fa832ffb3c859cf990",
+      "mode": 420
+    },
+    {
+      "path": "debs/libpython3.8-stdlib_3.8.10-0ubuntu1~20.04.18_arm64.deb",
+      "size": 1649648,
+      "sha256": "6b580bdbc66fc5f8d6e737da9f07cb3f1e6d1ef9ff47f7a724d541da53b2cfec",
+      "mode": 420
+    },
+    {
+      "path": "debs/libreadline8_8.0-4_arm64.deb",
+      "size": 123152,
+      "sha256": "d017810a798b617f750519537726bdfcd5bca28d3c56598558322250d9012b45",
+      "mode": 420
+    },
+    {
+      "path": "debs/libseccomp2_2.5.1-1ubuntu1~20.04.2_arm64.deb",
+      "size": 41400,
+      "sha256": "8462ebfc72e4c0e8213c787258342b46af8f6e236f17137b6d09fd036d1401f3",
+      "mode": 420
+    },
+    {
+      "path": "debs/libselinux1_3.0-1build2_arm64.deb",
+      "size": 64952,
+      "sha256": "91006c0db207cb6df4205db9c5a91309db58e7f4eef649093aa89def780e0e66",
+      "mode": 420
+    },
+    {
+      "path": "debs/libsemanage-common_3.0-1build2_all.deb",
+      "size": 9792,
+      "sha256": "4141f803c811277d2ea56568a676a79f06017b8c5eb57891741808a27c55fffb",
+      "mode": 420
+    },
+    {
+      "path": "debs/libsemanage1_3.0-1build2_arm64.deb",
+      "size": 79440,
+      "sha256": "6badb63e2650290230e42060c3461c5d30e1ed40dfdc8e1cfd80674cf22b76d0",
+      "mode": 420
+    },
+    {
+      "path": "debs/libsepol1_3.0-1ubuntu0.1_arm64.deb",
+      "size": 230672,
+      "sha256": "ff2d1b8f072f42d9b8fb726584c8db2b555f11ff38570e7143be0204c683d4de",
+      "mode": 420
+    },
+    {
+      "path": "debs/libsmartcols1_2.34-0.1ubuntu9.6_arm64.deb",
+      "size": 93100,
+      "sha256": "10f56a7c416da0f47a1766bb36c60cc1537d7d4183245cc65b74f6d08d3ccbca",
+      "mode": 420
+    },
+    {
+      "path": "debs/libsqlite3-0_3.31.1-4ubuntu0.7_arm64.deb",
+      "size": 506464,
+      "sha256": "e502ae78438a48d777029a22160bf08a0167607878d03b0cb59e30957ffdcc62",
+      "mode": 420
+    },
+    {
+      "path": "debs/libssl1.1_1.1.1f-1ubuntu2.24_arm64.deb",
+      "size": 1159156,
+      "sha256": "dded4572af8b0a9e0310909f211a519cc6409fda31ea81132a77e268b0ec0f2f",
+      "mode": 420
+    },
+    {
+      "path": "debs/libsystemd0_245.4-4ubuntu3.24_arm64.deb",
+      "size": 246048,
+      "sha256": "4e611130122108641de56d1ac809a6361b68a5428613b2dbab2a1ca795cc7d0e",
+      "mode": 420
+    },
+    {
+      "path": "debs/libtasn1-6_4.16.0-2ubuntu0.1_arm64.deb",
+      "size": 36968,
+      "sha256": "76cc2b2e52f73cf33ea130bf8de05b116540d72d0ab5d0f63d2c9135fca1ef6b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libtcl8.6_8.6.10+dfsg-1_arm64.deb",
+      "size": 849424,
+      "sha256": "b06966ac7ff8e2f4d3e54c1b7f4c43f6f3042f54765664e728f8ee4cad2b53d2",
+      "mode": 420
+    },
+    {
+      "path": "debs/libtinfo6_6.2-0ubuntu2.1_arm64.deb",
+      "size": 82064,
+      "sha256": "1231273008aecf90179bfc38fb1906f109224e64ade5ecf03e8a58800b51f2c1",
+      "mode": 420
+    },
+    {
+      "path": "debs/libtk8.6_8.6.10-1_arm64.deb",
+      "size": 674344,
+      "sha256": "be1ccd1a5f03d9e8ab8217ea9f80f12a4900eec30a09c6567320d8a23a33d95e",
+      "mode": 420
+    },
+    {
+      "path": "debs/libudev1_245.4-4ubuntu3.24_arm64.deb",
+      "size": 68848,
+      "sha256": "64e5cb9b70622038d57d2aa898cc4903e127f050e62f84abecf6c6f7b65e86b8",
+      "mode": 420
+    },
+    {
+      "path": "debs/libunistring2_0.9.10-2_arm64.deb",
+      "size": 357648,
+      "sha256": "22323af293a1d3377ba77b717c683a267c37d3da095798edf098aaa23e5a5439",
+      "mode": 420
+    },
+    {
+      "path": "debs/libuuid1_2.34-0.1ubuntu9.6_arm64.deb",
+      "size": 19400,
+      "sha256": "4ba69927ad94f1f5b0ff4c0cc28f7fdefca0418b97565acd84d0219567298b5b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libx11-6_2%3a1.6.9-2ubuntu1.6_arm64.deb",
+      "size": 553708,
+      "sha256": "68cbdb8a44dac09acaf52505b75cbdcaf43aeeee544dd9982e4754adf865daa4",
+      "mode": 420
+    },
+    {
+      "path": "debs/libx11-data_2%3a1.6.9-2ubuntu1.6_all.deb",
+      "size": 113552,
+      "sha256": "45c1fac19a8b7cc08162d1c8f63e04251bb2d0c4ff5cb3969227bd6fe8c5293b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxau6_1%3a1.0.9-0ubuntu1_arm64.deb",
+      "size": 7356,
+      "sha256": "0f19eb67992cf9a755a781502529750841d93fb8729691df02b9b16aec845b40",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxcb1_1.14-2_arm64.deb",
+      "size": 42988,
+      "sha256": "88e171a33249719366a4e29330775e2ac777226f1f379557daf0777083a1fc93",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxdmcp6_1%3a1.1.3-0ubuntu1_arm64.deb",
+      "size": 10272,
+      "sha256": "065c2e430e0de48007107aabb9b6ee25bb360eecca312c426827e158fa10974d",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxext6_2%3a1.3.4-0ubuntu1_arm64.deb",
+      "size": 27656,
+      "sha256": "4f153b62b8c5f77a8b043d7b6746ed43deedf0c2dee5d3911600df89b1a7c3db",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxft2_2.3.3-0ubuntu1_arm64.deb",
+      "size": 35888,
+      "sha256": "cf6ad81541748ca84d49acb1d6225b37d46877f2487cec460a82124c3c1bfa27",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxrender1_1%3a0.9.10-1_arm64.deb",
+      "size": 16088,
+      "sha256": "931f3d61ec6528221a0a2dc6f9fdac494e24d7e92e49ce1811c495571f3b2cea",
+      "mode": 420
+    },
+    {
+      "path": "debs/libxss1_1%3a1.2.3-1_arm64.deb",
+      "size": 8080,
+      "sha256": "9d6f0cd4f115b336d04e92305392efe7189d0c25c36ffbfb75e2a44358c2949b",
+      "mode": 420
+    },
+    {
+      "path": "debs/libzstd1_1.4.4+dfsg-3ubuntu0.1_arm64.deb",
+      "size": 216196,
+      "sha256": "e675e593d1f270ed757778f809ab67dd966f054d345e2c213e076cf418428f0b",
+      "mode": 420
+    },
+    {
+      "path": "debs/login_1%3a4.8.1-1ubuntu5.20.04.5_arm64.deb",
+      "size": 217712,
+      "sha256": "7a9e445d961aa44a884255a6b888f0c8d32c081220e45ec215508239a843c909",
+      "mode": 420
+    },
+    {
+      "path": "debs/lsb-base_11.1.0ubuntu2_all.deb",
+      "size": 12076,
+      "sha256": "eb40f6e96189cbde27a9cc4681f7ba7b4d51552d1ad74b876aea6a7ccb83f628",
+      "mode": 420
+    },
+    {
+      "path": "debs/mime-support_3.64ubuntu1_all.deb",
+      "size": 30596,
+      "sha256": "b4f73c76fa2abc24562466ec814eb9b6cfe5e030628187bb71b3da1422bda901",
+      "mode": 420
+    },
+    {
+      "path": "debs/mount_2.34-0.1ubuntu9.6_arm64.deb",
+      "size": 111760,
+      "sha256": "bd5c6fd306da428cb9d864fbf642db603313b9621964c235faddf221bd277ebf",
+      "mode": 420
+    },
+    {
+      "path": "debs/passwd_1%3a4.8.1-1ubuntu5.20.04.5_arm64.deb",
+      "size": 771416,
+      "sha256": "b2f3d11c81737f6aa92db9cd16a48572f4ad3fa37001ff3fcc65be391f34f92b",
+      "mode": 420
+    },
+    {
+      "path": "debs/perl-base_5.30.0-9ubuntu0.5_arm64.deb",
+      "size": 1392072,
+      "sha256": "d397d052b0cb2c78c9502bb9cca0b331a924ffe52e6b32a5c6a2bc6bb973a447",
+      "mode": 420
+    },
+    {
+      "path": "debs/policykit-1_0.105-26ubuntu1.3_arm64.deb",
+      "size": 79396,
+      "sha256": "f7eafb33336bb2df5707d92461c2e1c96e1a76b07e2604b049ec126376811fac",
+      "mode": 420
+    },
+    {
+      "path": "debs/python3-minimal_3.8.2-0ubuntu2_arm64.deb",
+      "size": 23560,
+      "sha256": "27e09da118ddf102de88489567ff7c8dd740d416ce1c000249ed84126027d157",
+      "mode": 420
+    },
+    {
+      "path": "debs/python3-tk_3.8.10-0ubuntu1~20.04_arm64.deb",
+      "size": 103516,
+      "sha256": "c15160d124d61f5fa4bb481b202a699e4e47e9544aa398a17369dc311343710c",
+      "mode": 420
+    },
+    {
+      "path": "debs/python3.8-minimal_3.8.10-0ubuntu1~20.04.18_arm64.deb",
+      "size": 1828904,
+      "sha256": "7e41d0fb0002c4f1fb2152dc4cb52fd37f52bcb3d528b0acef6c8f8ac693a935",
+      "mode": 420
+    },
+    {
+      "path": "debs/python3.8_3.8.10-0ubuntu1~20.04.18_arm64.deb",
+      "size": 386744,
+      "sha256": "c971943e99f8473e4cc9abff1ffee8dc070d027bb209029a8bac0019f4a97671",
+      "mode": 420
+    },
+    {
+      "path": "debs/python3_3.8.2-0ubuntu2_arm64.deb",
+      "size": 47616,
+      "sha256": "809df4509dec65438df01201d44ce1a1efd134a78dc18a03e4948093cfb0cb5e",
+      "mode": 420
+    },
+    {
+      "path": "debs/readline-common_8.0-4_all.deb",
+      "size": 53492,
+      "sha256": "38c3ac67e2dab4122a2f948f433c4cb5d5653d82b323f3ff30599797b7adee9f",
+      "mode": 420
+    },
+    {
+      "path": "debs/sensible-utils_0.0.12+nmu1_all.deb",
+      "size": 15016,
+      "sha256": "9ef20f3a2c2eac2d6d80b9ee0550f315d21fc7bc9e643f2f1b1e94c93f444601",
+      "mode": 420
+    },
+    {
+      "path": "debs/systemd-sysv_245.4-4ubuntu3.24_arm64.deb",
+      "size": 10284,
+      "sha256": "75536c0905a71a678792d1bc7ff19862770f0ded024c9f2e9a6eb4a346e954bf",
+      "mode": 420
+    },
+    {
+      "path": "debs/systemd-timesyncd_245.4-4ubuntu3.24_arm64.deb",
+      "size": 26308,
+      "sha256": "7a14bfaadd08859b61de2701c32978f395d53100b180514c64eb2e3e0c122110",
+      "mode": 420
+    },
+    {
+      "path": "debs/systemd_245.4-4ubuntu3.24_arm64.deb",
+      "size": 3499152,
+      "sha256": "e6c77177cb171e48c1c173619844baa9170155b4f6df851ece024a6376bdac3f",
+      "mode": 420
+    },
+    {
+      "path": "debs/tar_1.30+dfsg-7ubuntu0.20.04.4_arm64.deb",
+      "size": 227780,
+      "sha256": "7ddee263060139188fff92a1f2afe3592541e76fcc6a32323c40f32c3ba47bb5",
+      "mode": 420
+    },
+    {
+      "path": "debs/tk8.6-blt2.5_2.5.3+dfsg-4_arm64.deb",
+      "size": 477768,
+      "sha256": "0b05b822a4d80c7e1379dfb0e0d1b004d1215e090a48963bf5249906bbb44e50",
+      "mode": 420
+    },
+    {
+      "path": "debs/tzdata_2025b-0ubuntu0.20.04.1_all.deb",
+      "size": 300012,
+      "sha256": "d63a90a18b7137946897ed893b4981ed7ceeb2e5de91175e6891be98285c3959",
+      "mode": 420
+    },
+    {
+      "path": "debs/ucf_3.0038+nmu1_all.deb",
+      "size": 51620,
+      "sha256": "0fd6782ac99f3d9814960edefd5cceaa84f3a33feec6a149f7edf59431f3a3ac",
+      "mode": 420
+    },
+    {
+      "path": "debs/util-linux_2.34-0.1ubuntu9.6_arm64.deb",
+      "size": 983424,
+      "sha256": "337dc7581417c42f02f82ea38bc42f7e3a3523d4eea93b4627d9a3714893837f",
+      "mode": 420
+    },
+    {
+      "path": "debs/x11-common_1%3a7.7+19ubuntu14_all.deb",
+      "size": 22344,
+      "sha256": "63642d8d4b5a31cd0220aee2c98a0518559c08ac09258eed6a4705fbd82d7c1b",
+      "mode": 420
+    },
+    {
+      "path": "debs/zlib1g_1%3a1.2.11.dfsg-2ubuntu1.5_arm64.deb",
+      "size": 51564,
+      "sha256": "2c5f4ba1539a6126f0f04a07bcf2dd920c9505eb4afc7aefcec6f27d0a397578",
+      "mode": 420
+    },
+    {
+      "path": "docs/VALIDATION.md",
+      "size": 59250,
+      "sha256": "bae4dbb4b61d6283756701c7103619721e1c922ea48478ec1e19ed1b314b85e1",
+      "mode": 420
+    },
+    {
+      "path": "docs/module-map.md",
+      "size": 1113,
+      "sha256": "d6167730563fc006aa06f5a48fc035a646362f5ce1b2f8cd36faa031325cc270",
+      "mode": 420
+    },
+    {
+      "path": "docs/productlog.md",
+      "size": 465,
+      "sha256": "b6585f7e1be5d71f1f36aa437d6065c7bad6b7780e8aa4d25d6cb21627d4032a",
+      "mode": 420
+    },
+    {
+      "path": "generate.py",
+      "size": 343,
+      "sha256": "3c6d49a88e80d720cc824bc7d41a9a82396849cb2b933b5fbb7b7dffb1af21bd",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-128.png",
+      "size": 4190,
+      "sha256": "936ab3ed2b32fc9268ed6cde60e0b6a25dc6e3c778f8130ecf24d3e0c2a6e83e",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-16.png",
+      "size": 661,
+      "sha256": "adcfebd3241f71704b2ebe27f1f0f7e30faef02c7df689dadeb6e43f1d1d19b9",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-24.png",
+      "size": 1051,
+      "sha256": "dd42fd527cfe7253e8eb5a80f3f1236b4446e22336e5b17d9e62443eea10e1cc",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-256.png",
+      "size": 7332,
+      "sha256": "2eb907da18f3c5b2a08863953acdfd2e6c2a81c45837b5209db7fda5d20f87fa",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-32.png",
+      "size": 1411,
+      "sha256": "ba4048a76ed80ed57665b9fbc1deb8f7fdfa5dd30e130bdee888e3f06f921587",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-48.png",
+      "size": 1835,
+      "sha256": "4a21232d9afee11f13dd43af845abee8e896370d4812dbd6c3fb4cd96735d864",
+      "mode": 420
+    },
+    {
+      "path": "icons/swicher-64.png",
+      "size": 2432,
+      "sha256": "e211986a3e1f78d41435215e1ac7f8691201e3356dc7e11c004cda1c10e307bf",
+      "mode": 420
+    },
+    {
+      "path": "install.sh",
+      "size": 7516,
+      "sha256": "b30683679386976096debefa05b76114a5eaef4658864c78bad833cb48e6c6e3",
+      "mode": 420
+    },
+    {
+      "path": "install_offline_debs.sh",
+      "size": 3922,
+      "sha256": "859cfd51841653d7c48fbfc5024d6236ed385150f6d39be549bcd439dd6b0674",
+      "mode": 420
+    },
+    {
+      "path": "install_online.py",
+      "size": 13814,
+      "sha256": "06bc7c146cc98f46578a2a04c3c4903cab1404b5943e8834c54e4bdbbcf22a3d",
+      "mode": 420
+    },
+    {
+      "path": "iot_runner.py",
+      "size": 322,
+      "sha256": "ebc07bce514df14c32ba62c46519a3ccc5ce4a5a96664381b7c3afd5a030adcd",
+      "mode": 420
+    },
+    {
+      "path": "permission_presets.py",
+      "size": 273,
+      "sha256": "dda7de6cb7147fcb5577d90aea038d0064c8244948591e650b3216b43f869ecc",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/__init__.py",
+      "size": 215,
+      "sha256": "0cf1fac21eee18ab531ccb5e0bb3273edc815fc06f4e11ece883cf92f117c257",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/__main__.py",
+      "size": 157,
+      "sha256": "da7f2878fa2906facbe7ae0ae290d510bd7d1def29e04c5d6c866bd260ef0466",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/cli/__init__.py",
+      "size": 171,
+      "sha256": "b24c259b3cc21f2f6e9bfda92ac9fb620f31c82ed259df2554f94b3012f6f997",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/cli/common.py",
+      "size": 4568,
+      "sha256": "f9c20e12bae6833a208ed4b41f4c3cd0524b4efcd3141511e51b4f77fd869542",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/cli/main.py",
+      "size": 18850,
+      "sha256": "0808729f1e75dd85def302a63a80400afdcd5aac7c9686adcdda8a7ced2129b6",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/cli/menu.py",
+      "size": 22298,
+      "sha256": "353bf30f6a563b60045d6e8ccb851fba84d0fee996dfbdd6e737d06d3bd11a6e",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/__init__.py",
+      "size": 163,
+      "sha256": "e60d4a3424a9bf38f8456d7bc62fa35f148e09c87a9d6debf1668305dfcb8975",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/compat.py",
+      "size": 559,
+      "sha256": "0c4576655f12ca1402d2233c0446e126df8d7f2249a0f16c15a530abd5b26abd",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/diagnostics.py",
+      "size": 1246,
+      "sha256": "b179823bc2998a70ebe3ae27b7c4c9a38fcdf1aa8852a9342b42d226cfe53391",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/errors.py",
+      "size": 628,
+      "sha256": "32f2bbe7a1ff83df1b72b748c2f9527a6d433e9df336620197ade160a70731f2",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/files.py",
+      "size": 2447,
+      "sha256": "3842b484602b8a22df8c97d29296415fd6b1e4456b7de8664d3dbdf35af68080",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/paths.py",
+      "size": 209,
+      "sha256": "0b5b6c81fca65e4dabc88722e10e4bd8bc61d8099801ed869282c9792e18c511",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/settings.py",
+      "size": 623,
+      "sha256": "bf2f7fe17bb6e25e78d73920c1aafdf4faa868287339406126dd5df054a3d88b",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/common/text_diff.py",
+      "size": 6386,
+      "sha256": "955d65a5a8543b7ece397aa5301757b47972621a6546313b59ab8d87a601a0a3",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/configuration/__init__.py",
+      "size": 166,
+      "sha256": "3113edd58582322f660832db93ae99cf1cb832fe4058cf5725b35ae20904bb23",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/configuration/versions.py",
+      "size": 21756,
+      "sha256": "04c64572885c7facaa2dbd0e5715da1c3a34ee5bc8cd616a99a05e2a3573d9cf",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/configuration/visibility.py",
+      "size": 4643,
+      "sha256": "02f55341dc2a38ccf7b5bbe2a542ad0117e0a36f956eb55a4d7075f281c92c1f",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/demo/__init__.py",
+      "size": 156,
+      "sha256": "309d8867ecd3969a59050f4d8231e7288097c0e993693d2fc2529404f4736a34",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/demo/runner.py",
+      "size": 27975,
+      "sha256": "c13e78085fbf2ebc1faa90af526473b9b6800db4a2454478050fc03694efee69",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/__init__.py",
+      "size": 160,
+      "sha256": "b10aeb387a1d7ff4aff57fa14bde23a1178f2de58f1e8787a194c292ecfa9fe2",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/app.py",
+      "size": 49680,
+      "sha256": "c44c98e5986f03cb0c2b231a8454094e7307b34de5e2e98f3d7766b8a7a84026",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/__init__.py",
+      "size": 123,
+      "sha256": "0c4ff98e3cab4694eaf2285861e60678327e8df9d538909a8e1c5aaf23a7a37a",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/assets.py",
+      "size": 8217,
+      "sha256": "ff9210a1ef52e6024979b15692a7d5d58f437f7750bedde04f14bd06afe22a52",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/configuration.py",
+      "size": 16594,
+      "sha256": "e1822a90d61a9c52a4e15f6bc8c7b4f7c644a7037ed558ca170094b2df3478df",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/demo.py",
+      "size": 39424,
+      "sha256": "4056d28a8b6dbb3edb23b7cfba87c6d5631101b63d54caefc17a86baf719f3fe",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/files.py",
+      "size": 19385,
+      "sha256": "150fdb7a2becacd7601a8280f49fc83fa253f604752c9b6f4917cf8da508604d",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/program.py",
+      "size": 17697,
+      "sha256": "2ad33e0600072ee4ffad4d9749ac58ec7108de9944d6ded223495f64e6f25c23",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/pages/settings.py",
+      "size": 8999,
+      "sha256": "80ed95d79000584ca94082b5809339d6920fc9c7cb820f4e25240d38d55b1685",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/startup.py",
+      "size": 10746,
+      "sha256": "c40d449d182ce7389e3bd2a9525e850b8666deefcc21dc36af6791d838ef631e",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/__init__.py",
+      "size": 137,
+      "sha256": "a9ed269c700c24f1d9a0a3c4dd56640c777588017db94a24f4f1936bcf7690f7",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/assets.py",
+      "size": 122,
+      "sha256": "1610dcfdcfad817570c8da216c37af3f4c5bd66b23b76a4a6f0f7c5f5f462173",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/config_visibility.py",
+      "size": 8803,
+      "sha256": "76bde70db586ed56e50f4487802bc00e185c4e5114af4eb8d7b3fc03f432a04a",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/demo_cards.py",
+      "size": 11647,
+      "sha256": "df30c62164bfef48c7ea7ceab6d7d75675df90ad1d8dc9900c5fc854b6e8e3b5",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/icons.py",
+      "size": 446,
+      "sha256": "795ed2e44ad5472ac35d7edfa7948f1c09a04e626d9fc03b2cd4f9a97f013c3b",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/reference.py",
+      "size": 10844,
+      "sha256": "ee9ee56083db69972b419c1681b4034d2a27b25ffbb56d31468a5c35f1b197db",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/repositories.py",
+      "size": 6215,
+      "sha256": "6841fcf15572d84047ce369d98a2e0001f95fa83b178a179edb5b2318e970b4a",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/style.py",
+      "size": 12479,
+      "sha256": "967633f63c8377f7773d8a3437d0362f39d830016165b91153abaf11de0145aa",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/gui/widgets/update_dialog.py",
+      "size": 5826,
+      "sha256": "2f825007a62b49ca87e6dac7df02428bad446a0555968da827fe17ec6c876de9",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/__init__.py",
+      "size": 198,
+      "sha256": "3c058a0c1ff16e1dfe88b684f889876d793c4dd8765b89fea03d2369473a96e5",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/catalog.py",
+      "size": 6309,
+      "sha256": "b8fe1bab606a1acd08c798baaff9bf1727f88c0f30bfe38fb47237b1e166c13d",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/discovery.py",
+      "size": 4485,
+      "sha256": "756f453779049660c55e27a391f1be676f16c102b22b32637ab55a715e85b8a2",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/generate.py",
+      "size": 6414,
+      "sha256": "24f6be0007951e1c90b60c38de384b41d582ae553e7c5f039fa64f1833a6985b",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/gitee.py",
+      "size": 4620,
+      "sha256": "29a2f7b52004a4f0a54d3b4a4c035860704d92e0ea07eb1db7420793b922a2d0",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/gitlab.py",
+      "size": 3392,
+      "sha256": "3912c92d4321441f72fed176639fdd2aa6b1a93154a9b4db44092414897b38b0",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/repositories/source.py",
+      "size": 16452,
+      "sha256": "13cf86c3c0cc36b2b1d0a3b8cd1fd1cf0085457995c78dd6826b56dbb05c58c2",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/__init__.py",
+      "size": 182,
+      "sha256": "3e725c3dd4ef8bd330e6adf255361e3ab3110711dadb1d52c0fd165dc794fc5f",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/assets.py",
+      "size": 7057,
+      "sha256": "5988e06cc44498d23943868a6241d87aab9fc11eaa6a12b1ba10517286b96e13",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/cache.py",
+      "size": 1444,
+      "sha256": "bd358e7da15facba5a1c1d436b6386b7fd79397670bbccf1e993529fe256051b",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/diagnostics.py",
+      "size": 9899,
+      "sha256": "2310e3a55d8e84c38757a83e4da9409ddbd8bb0e14c48f69c9cbc295d029aaca",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/engine.py",
+      "size": 19118,
+      "sha256": "f70a80af7fddfa98015da0bd8f13728e637a4732ac9181faf8ab21fb7d96cd44",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/formats.py",
+      "size": 1812,
+      "sha256": "5999da3352d13b97e339578edef2127e1332920764cf82b70f227177529619c7",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/hashes.py",
+      "size": 1428,
+      "sha256": "6a222de26c1389065fe53f4400f9dcb34645531bb01549324f6d3ed57cf95964",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/manifests.py",
+      "size": 7036,
+      "sha256": "58dad118274b66c9bce9f0261d6526f80c62acd899af0270b50ca24275960467",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/permissions.py",
+      "size": 7325,
+      "sha256": "864b94bf5d2604c1ea294a9aeba4acd96c1c6d3a0b614df6f2661d033d4491bc",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/preview.py",
+      "size": 4470,
+      "sha256": "140eb563b4fd3c2ae436185f26cc5000d1adddb32b0bbba61b645ed59efb4dda",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/scan.py",
+      "size": 1744,
+      "sha256": "5d494013d72529123e3be2bed0339bdc12fde7bebae87680cad0d33dec97fada",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/sync/transaction.py",
+      "size": 5336,
+      "sha256": "947c414d9ddf93530ef05633f623484cea2dc42a78ceb8551e11c49560fb6cdf",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/__init__.py",
+      "size": 164,
+      "sha256": "bb0c6c6833b4265b0f19b7008e7114dbe64aacefb401703660bb1277cad71768",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/bootstrap.py",
+      "size": 9054,
+      "sha256": "cfdfa6fd900ce3292a05b79b75f0fa29fdc3b9ef1fab5fb96aa773b5e2d96d16",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/channels.py",
+      "size": 1127,
+      "sha256": "77695da0538e6491c505be217a5f3658d742567c24a7ea62090c26e18cd0dfbd",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/incremental.py",
+      "size": 4808,
+      "sha256": "1ec8d44af180cf3179905cd62673047ac9a01f01b0c5fb118d4507f854cf9436",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/package.py",
+      "size": 8765,
+      "sha256": "333e2bdb419542421e9713e559916878bc0d81be4eac61817b4d0098ba44fd00",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/release.py",
+      "size": 10523,
+      "sha256": "aa4ca054190c159c9a71d0796b801525680a3fbaa0884ac83635e76c51c40342",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/startup.py",
+      "size": 4225,
+      "sha256": "806fbc53aa8790092a8adbd8f8d25cf292ef51c9eea364c9018b9eee02b5246e",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/updates/unified.py",
+      "size": 13580,
+      "sha256": "fd193ebba303b04f952059c7f92b46d3b3d6c6a3a447efa64f9275ad1677b9ad",
+      "mode": 420
+    },
+    {
+      "path": "publish_switcher/version.py",
+      "size": 140,
+      "sha256": "3226e69f122dc3eb097627387eee9f3476f6ad3ca97eb4467f8f2e0025be4658",
+      "mode": 420
+    },
+    {
+      "path": "reference_ui.py",
+      "size": 216,
+      "sha256": "6d96f69a4f9c1d6d35a99813e5da6372156efa97a54651a58905ae90d37e3905",
+      "mode": 420
+    },
+    {
+      "path": "repository-template/README.md",
+      "size": 1362,
+      "sha256": "1c002c170bbcb7230e8c0389646a203021d915af849429c4e2ac48bca4ae197f",
+      "mode": 420
+    },
+    {
+      "path": "repository-template/catalog.json",
+      "size": 44,
+      "sha256": "4dfaa8e5ed9db3f50cfbe62f9ec06603e87c6ce9a22fff5741629a578b4c1111",
+      "mode": 420
+    },
+    {
+      "path": "repository-template/versions.example.json",
+      "size": 455,
+      "sha256": "0cc4846751fdc8f1d8c7a070a7298cad674bda22edd817481166c07f898ff50f",
+      "mode": 420
+    },
+    {
+      "path": "switcher.py",
+      "size": 373,
+      "sha256": "29286cc073e490a66386fbbe6f7e3add1bab27e35ec7c3e27b52cb9406b558ae",
+      "mode": 420
+    },
+    {
+      "path": "tool_update.py",
+      "size": 9054,
+      "sha256": "cfdfa6fd900ce3292a05b79b75f0fa29fdc3b9ef1fab5fb96aa773b5e2d96d16",
+      "mode": 420
+    },
+    {
+      "path": "ui_assets.py",
+      "size": 204,
+      "sha256": "e590403ffb3a1a83cc6d0a6031dd883ca307b579984d3bdd225e8aed9337cbc8",
+      "mode": 420
+    },
+    {
+      "path": "unified_update.py",
+      "size": 234,
+      "sha256": "e2ac638f8ec14224a2967c7a24a10b6093327eea356ad3e86652c7db6e83019f",
+      "mode": 420
+    },
+    {
+      "path": "update_channels.py",
+      "size": 200,
+      "sha256": "5e6a18e62e3769c848ffd8993b98ffdd9b58f3a3c6be938f0548529e2339f192",
+      "mode": 420
+    },
+    {
+      "path": "update_dialog.py",
+      "size": 221,
+      "sha256": "53224d7e09a2557dc3888b3ed661d4d192aacde3a3abea9e8e9249544db32cb9",
+      "mode": 420
+    },
+    {
+      "path": "version.py",
+      "size": 140,
+      "sha256": "3226e69f122dc3eb097627387eee9f3476f6ad3ca97eb4467f8f2e0025be4658",
+      "mode": 420
+    }
+  ],
+  "files_url": "https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/objects/",
+  "notes": "修复 Ubuntu 启动时更新小窗不可见，窗口显示后再开始检查更新。"
 }

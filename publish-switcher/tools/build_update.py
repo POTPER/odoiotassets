@@ -1,4 +1,4 @@
-"""Build the single installer ZIP and its publishable update information."""
+"""Build the installer ZIP, file manifest and immutable online update objects."""
 import argparse
 import ast
 import hashlib
@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import urllib.parse
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -76,6 +77,31 @@ def verify_distribution(root):
             raise RuntimeError("离线依赖校验失败：" + name)
 
 
+def build_file_objects(package_path, output):
+    """Publish immutable objects from the exact bytes used in the ZIP."""
+    objects = output / "objects"
+    objects.mkdir(exist_ok=True)
+    files = []
+    with zipfile.ZipFile(package_path) as package:
+        for entry in archive_entries(package):
+            if entry.is_dir():
+                continue
+            data = package.read(entry)
+            digest = hashlib.sha256(data).hexdigest()
+            target = objects / digest
+            if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                with tempfile.NamedTemporaryFile(dir=objects, suffix=".tmp", delete=False) as stream:
+                    temporary = Path(stream.name)
+                    stream.write(data)
+                try:
+                    temporary.replace(target)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            files.append(dict(path=entry.filename.split("/", 1)[1], size=len(data), sha256=digest,
+                              mode=0o755 if (entry.external_attr >> 16) & 0o111 else 0o644))
+    return files
+
+
 def build(root, output, url):
     root, output = Path(root).resolve(), Path(output).resolve()
     if installer_source(root) != (root / INSTALLER).read_text(encoding="utf-8"):
@@ -96,10 +122,12 @@ def build(root, output, url):
             contents = Path(verification) / "publish-switcher"
             validate_payload(contents, VERSION)
             verify_distribution(contents)
+        file_manifest = build_file_objects(temporary, output)
         release = validate_release({"schema_version": 1, "product": "publish-switcher", "version": VERSION,
                                     "url": https_url(url), "package_file": archive.name, "size": temporary.stat().st_size,
                                     "sha256": hashlib.sha256(temporary.read_bytes()).hexdigest(),
-                                    "notes": "添加 swicher 软件图标，支持窗口、任务栏和桌面快捷方式。"})
+                                    "files": file_manifest, "files_url": urllib.parse.urljoin(url, "objects/"),
+                                    "notes": "修复 Ubuntu 启动时更新小窗不可见，窗口显示后再开始检查更新。"})
         with tempfile.NamedTemporaryFile(dir=output, prefix="manifest-", suffix=".tmp", delete=False,
                                          mode="w", encoding="utf-8") as stream:
             temporary_manifest = Path(stream.name)
@@ -118,7 +146,7 @@ def build(root, output, url):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="生成 publish-switcher.zip 与 switcher-update.json，请一起发布。")
+    parser = argparse.ArgumentParser(description="生成安装 ZIP、更新清单与 objects/，请一起发布整个 release/。")
     parser.add_argument("--url", default="https://gitee.com/potper/odoiotassets/raw/main/publish-switcher/release/publish-switcher.zip",
                         help="设备可访问的 HTTPS 安装包地址，可用 Releases 或对象存储")
     parser.add_argument("--output", default=str(Path(__file__).resolve().parents[1] / "release"))

@@ -1,6 +1,6 @@
 """工具版本检查与准备。
 
-下载并校验 Switcher 安装包，写入 pending 记录；真正替换目录由根目录 tool_update 完成。
+通过文件清单或完整 ZIP 准备新版，写入 pending 记录；外部更新助手负责替换目录。
 """
 import json
 import os
@@ -46,17 +46,8 @@ def prepare_package(install, release, package, current):
 def _prepare_package(install, release, package, current):
     install, package = Path(install).absolute(), Path(package)
     release = validate_release(release)
-    state = update_state(install)
-    if version_number(release["version"]) < version_number(current):
-        raise UpdateError("不能用较旧的安装包更新程序。")
-    required = state / "required.json"
-    if required.exists() and version_number(release["version"]) < version_number(read_json(required)["version"]):
-        raise UpdateError("此离线包低于已知的必更版本，请准备最新安装包。")
+    state = preparation_state(install, release, current)
     verify_package_file(package, release)
-    if (state / "pending.json").exists():
-        raise UpdateError("存在未完成的程序更新，请关闭并重新打开工具。")
-    if not install.is_dir() or os.path.ismount(install):
-        raise UpdateError("程序安装目录不存在或是挂载点，无法整体替换。")
     token = uuid.uuid4().hex
     stage = state / ("stage-" + token)
     stage.mkdir()
@@ -81,17 +72,38 @@ def _prepare_package(install, release, package, current):
                         outgoing.flush()
                         os.fsync(outgoing.fileno())
                     destination.chmod(0o755 if mode & 0o111 else 0o644)
-        validate_payload(stage, release['version'])
-        record = {"phase": "prepared", "stage": stage.name, "backup": "backup-" + token, "version": release["version"]}
-        save_json(state / "pending.json", record)
-        return record
+        return finish_preparation(state, stage, release)
     except BaseException:
         shutil.rmtree(stage)
         raise
 
 
+def preparation_state(install, release, current):
+    """Shared downgrade, pending-operation and destination checks."""
+    release = validate_release(release)
+    state = update_state(install)
+    if version_number(release["version"]) < version_number(current):
+        raise UpdateError("不能用较旧的安装包更新程序。")
+    required = state / "required.json"
+    if required.exists() and version_number(release["version"]) < version_number(read_json(required)["version"]):
+        raise UpdateError("此离线包低于已知的必更版本，请准备最新安装包。")
+    if (state / "pending.json").exists():
+        raise UpdateError("存在未完成的程序更新，请关闭并重新打开工具。")
+    if not install.is_dir() or os.path.ismount(install):
+        raise UpdateError("程序安装目录不存在或是挂载点，无法整体替换。")
+    return state
+
+
+def finish_preparation(state, stage, release):
+    validate_payload(stage, release["version"])
+    record = {"phase": "prepared", "stage": stage.name, "backup": "backup-" + stage.name[6:],
+              "version": release["version"]}
+    save_json(state / "pending.json", record)
+    return record
+
+
 def remote_file(url):
-    """Preserve the existing Gitee public Blob fallback for ZIP downloads."""
+    """Resolve update metadata and objects with the Gitee public Blob fallback."""
     parsed = urllib.parse.urlsplit(https_url(url))
     parts = parsed.path.strip("/").split("/")
     if parsed.hostname == "gitee.com" and len(parts) >= 5 and parts[2] == "raw" and not parsed.query:
@@ -178,7 +190,13 @@ def remember_release(release, install, current):
     return release, version_number(release["version"]) > version_number(current)
 
 
-def prepare_online(install, release, current, cancel, progress, *, on_attempt=None):
+def prepare_online(install, release, current, cancel, progress, *, on_attempt=None, on_plan=None):
+    release = validate_release(release)
+    if "files" in release:
+        from publish_switcher.updates.incremental import prepare
+        return prepare(install, release, current, cancel, progress, on_attempt=on_attempt, on_plan=on_plan)
+    if on_plan is not None:
+        on_plan(release["size"])
     state = update_state(install)
     package = state / "download.zip"
     failures = []

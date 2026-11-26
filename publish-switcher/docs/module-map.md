@@ -35,6 +35,7 @@ flowchart TB
 | 配置切换与可见性 | `configuration/` |
 | 启动自动更新与进度窗口 | `updates/startup.py`、`gui/startup.py` |
 | 一键更新与独立恢复 | `updates/unified.py`、`updates/bootstrap.py` |
+| swicher 按文件对比升级 | `updates/incremental.py`、`updates/release.py` |
 | IoT Demo | `demo/` |
 | 用户界面 / 工程师面板 | `gui/` |
 | SSH 菜单 | `cli/` |

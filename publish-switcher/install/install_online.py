@@ -44,7 +44,8 @@ LAYOUT_FILES = (
 )
 STARTUP_FILES = ("publish_switcher/gui/startup.py", "publish_switcher/updates/startup.py")
 ICON_FILES = tuple("icons/swicher-{}.png".format(size) for size in (16, 24, 32, 48, 64, 128, 256))
-REQUIRED_FILES = BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES + ICON_FILES
+INCREMENTAL_FILES = ("publish_switcher/updates/incremental.py",)
+REQUIRED_FILES = BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES + ICON_FILES + INCREMENTAL_FILES
 
 
 class PackageError(ValueError):
@@ -80,7 +81,50 @@ def validate_release(data):
         raise PackageError("离线更新包文件名无效。")
     result = dict(data, package_file=name)
     result["notes"] = str(data.get("notes", ""))[:8000]
+    if "files" in data or "files_url" in data:
+        result["files"] = validate_files(data.get("files"), data["version"])
+        base = https_url(data.get("files_url"))
+        if not base.endswith("/") or urllib.parse.urlsplit(base).query:
+            raise PackageError("文件更新地址必须为 HTTPS 目录地址。")
+        result["files_url"] = base
     return result
+
+
+def validate_files(files, version):
+    if not isinstance(files, list) or not 0 < len(files) <= 10000:
+        raise PackageError("程序文件清单无效。")
+    paths, objects = set(), {}
+    total = 0
+    for entry in files:
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            raise PackageError("程序文件清单条目无效。")
+        name = entry["path"]
+        path = PurePosixPath(name)
+        if (not path.parts or path.is_absolute() or path.as_posix() != name or ".." in path.parts
+                or any(char in name for char in (chr(92), ":", chr(0)))
+                or any(part.endswith((".", " ")) for part in path.parts)):
+            raise PackageError("程序文件清单包含无效路径。")
+        key = name.casefold()
+        if key in paths:
+            raise PackageError("程序文件清单包含重复路径。")
+        paths.add(key)
+        size, digest, mode = entry.get("size"), entry.get("sha256"), entry.get("mode")
+        if (type(size) is not int or size < 0 or size > MAX_PACKAGE
+                or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or type(mode) is not int or mode not in (0o644, 0o755)):
+            raise PackageError("程序文件清单缺少有效的大小、SHA-256 或权限。")
+        if digest in objects and objects[digest] != size:
+            raise PackageError("相同文件对象的大小不一致。")
+        objects[digest] = size
+        total += size
+    if total > 1024 ** 3:
+        raise PackageError("程序文件清单过大。")
+    for name in paths:
+        if any(parent.as_posix() in paths for parent in PurePosixPath(name).parents if parent.parts):
+            raise PackageError("程序文件清单包含文件与目录冲突。")
+    if any(name.casefold() not in paths for name in required_files(version)):
+        raise PackageError("程序文件清单缺少必需文件。")
+    return files
 
 
 def package_version(path):
@@ -95,8 +139,10 @@ def package_version(path):
 
 def required_files(version):
     number = version_number(version)
-    if number >= (2026, 11, 26, 1):
+    if number >= (2026, 11, 26, 2):
         return REQUIRED_FILES
+    if number >= (2026, 11, 26, 1):
+        return BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES + ICON_FILES
     if number >= (2026, 11, 21, 5):
         return BASE_FILES + UPDATE_FILES + INTERFACE_FILES + PACKAGE_FILES + LAYOUT_FILES + STARTUP_FILES
     if number >= (2026, 11, 21, 1):

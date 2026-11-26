@@ -174,7 +174,7 @@ class Application:
                 self.program_view.program_check_id = None
                 self.startup_window.start(resume_update)
 
-            self.program_view.program_check_id = root.after_idle(begin_startup)
+            self.startup_window.show(begin_startup)
         elif updates and not engineer:
             self.pages.select(self.program_page)
             self.program_view.program_check_id = root.after(150, self.program_view.check_program_update)

@@ -10,7 +10,11 @@
 
 开发文档集中在 `docs/`，包括[模块地图](docs/module-map.md)、[产品记录](docs/productlog.md)和[验证记录](docs/VALIDATION.md)。
 
-在线和离线继续共用 `release/publish-switcher.zip`。如果修改了 `publish_switcher/updates/package.py`，先运行 `python3 tools/build_update.py --sync-installer`，然后运行 `python3 tools/build_update.py`。构建会检查版本、程序文件、自测样例和本地 `debs/SHA256SUMS` 列出的离线依赖，再生成 ZIP 和配套清单。
+首次安装和离线安装使用 `release/publish-switcher.zip`。swicher 在线升级读取 `switcher-update.json` 中的文件清单，按 SHA-256 复用本地相同文件，只下载新增和变化的文件，包含有变化的离线依赖。全部校验后由外部助手切换完整程序目录，启动失败时回滚。
+
+如果修改了 `publish_switcher/updates/package.py`，先运行 `python3 tools/build_update.py --sync-installer`，然后运行 `python3 tools/build_update.py`。构建会检查版本、程序文件、自测样例和离线依赖，生成 ZIP、配套清单和 `release/objects/` 文件对象。发布时上传整个 `release/`，先上传对象及 ZIP，最后更新清单。对象以内容哈希命名，保留历史对象可供正在升级的设备继续下载。
+
+旧版更新器仍通过 ZIP 升级一次，安装支持文件对比的新版后，后续在线升级使用文件清单。仅提供旧格式清单的服务器继续使用 ZIP 更新。
 
 构建脚本按清单组装 ZIP。解压后的安装包仍从根目录运行 `bash install.sh`。旧版需要的根目录文件由 `tools/packaging/legacy/` 中的兼容入口、安装脚本及包内实现组装。ZIP 中的 `tool_update.py` 是完整的独立恢复脚本，可在安装目录外启动。
 

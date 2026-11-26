@@ -188,6 +188,7 @@ def run_update(install, current, target, repositories, presets, extensions, rele
             if newer:
                 report("preparing", "正在下载并校验新版 swicher…")
                 received = [0]
+                download_total = [release["size"]]
 
                 def publish_transfer(phase, message, count, total, reset=False):
                     event(dict(phase=phase, message=message, cancellable=True,
@@ -195,13 +196,17 @@ def run_update(install, current, target, repositories, presets, extensions, rele
 
                 def progress(size):
                     received[0] += size
-                    publish_transfer("preparing", "正在下载新版 swicher…", received[0], release["size"])
+                    publish_transfer("preparing", "正在下载新版 swicher…", received[0], download_total[0])
 
                 def reset_transfer():
                     received[0] = 0
-                    publish_transfer("preparing", "正在下载新版 swicher…", 0, release["size"], True)
+                    publish_transfer("preparing", "正在下载新版 swicher…", 0, download_total[0], True)
 
-                download_options = {"on_attempt": reset_transfer} if startup else {}
+                def plan_transfer(total):
+                    download_total[0] = total
+                    reset_transfer()
+
+                download_options = {"on_attempt": reset_transfer, "on_plan": plan_transfer}
                 tool_update.prepare_online(install, release, current, cancel, progress, **download_options)
                 prepared = True
                 result["program"] = "已准备"
